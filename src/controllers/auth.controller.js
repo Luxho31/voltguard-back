@@ -1,23 +1,22 @@
 // src/controllers/auth.controller.js
 import User from "../models/User.js";
 import { generateToken } from "../utils/generateToken.js";
+import bcrypt from "bcryptjs"
 
 export const login = async (req, res) => {
     const { email, password } = req.body;
 
     const user = await User.findOne({ email });
-
-    if (!user || !(await user.comparePassword(password))) {
-        return res.status(401).json({ message: "Credenciales inválidas" });
+    if (!user) {
+      return res.status(400).json({ message: "Credenciales inválidas" });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
-
     if (!isMatch) {
-        return res.status(400).json({ message: "Credenciales inválidas" });
+      return res.status(400).json({ message: "Credenciales inválidas" });
     }
 
-    const token = generateToken(user._id);
+    const token = generateToken(user);
 
     res.cookie("token", token, {
         httpOnly: true,
@@ -33,7 +32,7 @@ export const login = async (req, res) => {
         },
     });
 
-    res.status(201).json({ message: "Login exitoso" });
+    res.status(200).json({ message: "Login exitoso" });
 };
 
 // SOLO para inicial (puedes luego protegerlo)

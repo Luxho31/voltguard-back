@@ -1,10 +1,10 @@
 import express from "express";
 import dotenv from "dotenv";
-import authRoute from "./routes/auth.route.js"
-import companyRoute from "./routes/company.route.js"
-import boardRoute from "./routes/board.route.js"
-import superadminRoute from "./routes/superadmin.route.js"
-import connectDB from "./config/db.js"
+import authRoute from "./routes/auth.route.js";
+import adminRoute from "./routes/admin.route.js";
+import boardRoute from "./routes/board.route.js";
+import publicRoute from "./routes/public.route.js";
+import connectDB from "./config/db.js";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 
@@ -30,10 +30,10 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 app.use("/api/v1/auth", authRoute);
-app.use("/api/v1/company", companyRoute);
+app.use("/api/v1/admin", adminRoute);
 app.use("/api/v1/board", boardRoute);
-app.use("/api/v1/superadmin", superadminRoute);
+app.use("/api/v1/public", publicRoute);
 
 app.listen(process.env.PORT, () => {
-    console.log("Se esta ejecutando en el puerto:", process.env.PORT)
+    console.log("Se esta ejecutando en el puerto:", process.env.PORT);
 });
