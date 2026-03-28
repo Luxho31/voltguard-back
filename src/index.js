@@ -3,9 +3,9 @@ import dotenv from "dotenv";
 import authRoute from "./routes/auth.route.js";
 import companyRoute from "./routes/company.route.js";
 import boardRoute from "./routes/board.route.js";
-import superadminRoute from "./routes/superadmin.route.js";
 import adminRoute from "./routes/admin.route.js";
 import userRoute from "./routes/user.route.js";
+import publicRoute from "./routes/public.route.js";
 import connectDB from "./config/db.js";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -37,9 +37,9 @@ app.use(cors(corsOptions));
 app.use("/api/auth", authRoute);
 app.use("/api/company", companyRoute);
 app.use("/api/board", boardRoute);
-app.use("/api/superadmin", superadminRoute);
 app.use("/api/admin", adminRoute);
 app.use("/api/user", userRoute);
+app.use("/api/public", publicRoute);
 
 const PORT = process.env.PORT || 5080;
 
