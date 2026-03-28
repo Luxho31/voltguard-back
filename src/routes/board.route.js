@@ -1,20 +1,25 @@
 import express from "express";
 import {
   createBoard,
-  getBoards,
-  getBoardByCode,
-  deleteBoard
+  getCompanyBoards,
+  getCompanyBoardByCode,
+  deleteBoard,
+  publicGetCompanyBoardByCode,
+  publicGetCompanyBoards,
 } from "../controllers/board.controller.js";
 
 import { authMiddleware, requireRole } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
-router.post("/", authMiddleware, requireRole("admin"), createBoard);
-router.get("/", authMiddleware, requireRole("admin"), getBoards);
+//RUTAS PRIBADAS PARA ADMINISTRADORES DE EMPRESA
+router.post("/create", authMiddleware, requireRole("admin"), createBoard);
+router.get("/", authMiddleware, requireRole("admin"), getCompanyBoards);
+router.get("/:id", authMiddleware, requireRole("admin"), getCompanyBoardByCode);
 router.delete("/:id", authMiddleware, requireRole("admin"), deleteBoard);
 
-// PUBLICO (QR)
-router.get("/:code", getBoardByCode);
+//RUTAS PUBLICAS
+router.get("/public/:publicCode", publicGetCompanyBoardByCode);
+router.get("/public/company/:publicCode", publicGetCompanyBoards);
 
 export default router;

@@ -4,6 +4,11 @@ const companySchema = new mongoose.Schema(
     {
         name: { type: String, required: true },
         ruc: { type: String },
+        publicCode: {
+            type: String,
+            unique: true,
+            required: true,
+        }
     },
     {
         timestamps: true,

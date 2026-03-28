@@ -1,6 +1,6 @@
 // src/middlewares/role.middleware.js
 export const isSuperAdmin = (req, res, next) => {
-  if (req.user.role !== "SUPERADMIN") {
+  if (req.user.role !== "superadmin") {
     return res.status(403).json({ message: "Acceso denegado" });
   }
   next();
