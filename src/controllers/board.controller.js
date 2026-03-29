@@ -2,190 +2,229 @@ import Board from "../models/Board.js";
 import Company from "../models/Company.js";
 import { v4 as uuidv4 } from "uuid";
 
-import { uploadToCloudinary } from "../utils/uploadToCloudinary.js";
-import { formatName } from "../utils/format.js";
+/**
+ * =========================
+ * 🔒 PRIVADO (ADMIN)
+ * =========================
+ */
 
+// ✅ Crear tablero
 export const createBoard = async (req, res) => {
   try {
-    const { name, location, description } = req.body;
+    const { name, location, description, images } = req.body;
 
-    const files = req.files;
+    if (!req.user) {
+      return res.status(401).json({ message: "No autorizado" });
+    }
 
-    const company = formatName(req.user.company); // volvo
-    const boardName = `${formatName(name)}-${Date.now()}`; // td-administracion
+    if (!req.user.company) {
+      return res
+        .status(400)
+        .json({ message: "El usuario no tiene empresa asignada" });
+    }
 
-    // función helper
-    const uploadGroup = async (filesArray, type) => {
-      if (!filesArray) return [];
-
-      const folder = `user/${company}/${boardName}/${type}`;
-
-      const uploads = filesArray.map(file =>
-        uploadToCloudinary(file.buffer, folder)
-      );
-
-      return await Promise.all(uploads);
-    };
-
-    const images = {
-      tablero: await uploadGroup(files.tablero, "tablero"),
-      unifilar: await uploadGroup(files.unifilar, "unifilar"),
-      leyenda: await uploadGroup(files.leyenda, "leyenda"),
-      termografia: await uploadGroup(files.termografia, "termografia")
-    };
-
-    const code = uuidv4();
+    if (!name || name.trim() === "") {
+      return res.status(400).json({ message: "El nombre es obligatorio" });
+    }
 
     const board = await Board.create({
-      name,
-      location,
-      description,
-      code,
+      code: uuidv4(), // 🔥 código público único
+      name: name.trim(),
+      location: location?.trim() || "",
+      description: description?.trim() || "",
+      images: Array.isArray(images) ? images : [],
       company: req.user.company,
       createdBy: req.user.id,
-      images
     });
 
-    res.json({
-      message: "Tablero creado",
+    return res.status(201).json({
+      message: "Tablero creado correctamente",
       board,
-      qrUrl: `${process.env.FRONT_URL}/board/${code}`
     });
-
   } catch (error) {
-    console.log(error);
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({
+      message: "Error al crear tablero",
+      error: error.message,
+    });
   }
 };
 
-export const getBoards = async (req, res) => {
-    try {
-        const boards = await Board.find({
-            company: req.user.company,
-        });
+// ✅ Obtener tableros de la empresa del admin
+export const getCompanyBoards = async (req, res) => {
+  try {
+    const boards = await Board.find({ company: req.user.company })
+      .populate("company", "name")
+      .populate("createdBy", "name email")
+      .sort({ createdAt: -1 });
 
-        res.json(boards);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
+    return res.json(boards);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
 };
 
-export const getBoardById = async (req, res) => {
-    try {
-        const board = await Board.findOne({
-            _id: req.params.id,
-            company: req.user.company,
-        });
+// ✅ Obtener un tablero por ID (solo si pertenece a su empresa)
+export const getCompanyBoardByCode = async (req, res) => {
+  try {
+    const board = await Board.findOne({
+      _id: req.params.id,
+      company: req.user.company,
+    }).populate("company", "name");
 
-        if (!board) {
-            return res.status(404).json({ message: "No encontrado" });
-        }
-
-        res.json(board);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
+    if (!board) {
+      return res.status(404).json({ message: "Tablero no encontrado" });
     }
+
+    return res.json(board);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
 };
 
 export const updateBoard = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { name, location, description, images } = req.body;
 
+    // 🔒 Validar usuario
+    if (!req.user) {
+      return res.status(401).json({ message: "No autorizado" });
+    }
+
+    // 🔒 Validar empresa asignada
+    if (!req.user.company) {
+      return res.status(400).json({
+        message: "El usuario no tiene empresa asignada",
+      });
+    }
+
+    // 🔒 Buscar tablero SOLO de su empresa
     const board = await Board.findOne({
-      _id: id,
-      company: req.user.company
+      _id: req.params.id,
+      company: req.user.company,
     });
 
     if (!board) {
-      return res.status(404).json({ message: "No encontrado" });
+      return res.status(404).json({
+        message: "Tablero no encontrado o no pertenece a tu empresa",
+      });
     }
 
-    const files = req.files || {};
-
-    // 🔴 imágenes a eliminar (enviadas desde frontend)
-    const imagesToDelete = req.body.imagesToDelete
-      ? JSON.parse(req.body.imagesToDelete)
-      : [];
-
-    // 🔥 eliminar de cloudinary
-    for (const img of imagesToDelete) {
-      await deleteFromCloudinary(img.public_id);
-
-      // eliminar también de BD
-      for (let key in board.images) {
-        board.images[key] = board.images[key].filter(
-          (i) => i.public_id !== img.public_id
-        );
+    // ✏️ Actualizar campos (solo si vienen)
+    if (name !== undefined) {
+      if (name.trim() === "") {
+        return res.status(400).json({
+          message: "El nombre no puede estar vacío",
+        });
       }
+      board.name = name.trim();
     }
 
-    // 🟢 agregar nuevas imágenes
-    const company = formatName(req.user.company);
-    const boardName = formatName(board.name);
-
-    const uploadGroup = async (filesArray, type) => {
-      if (!filesArray) return [];
-
-      const folder = `user/${company}/${boardName}/${type}`;
-
-      const uploads = filesArray.map(file =>
-        uploadToCloudinary(file.buffer, folder)
-      );
-
-      return await Promise.all(uploads);
-    };
-
-    const newImages = {
-      tablero: await uploadGroup(files.tablero, "tablero"),
-      unifilar: await uploadGroup(files.unifilar, "unifilar"),
-      leyenda: await uploadGroup(files.leyenda, "leyenda"),
-      termografia: await uploadGroup(files.termografia, "termografia")
-    };
-
-    // combinar imágenes
-    for (let key in newImages) {
-      if (newImages[key].length > 0) {
-        board.images[key].push(...newImages[key]);
-      }
+    if (location !== undefined) {
+      board.location = location.trim();
     }
 
-    // actualizar datos
-    board.name = req.body.name || board.name;
-    board.location = req.body.location || board.location;
-    board.description = req.body.description || board.description;
+    if (description !== undefined) {
+      board.description = description.trim();
+    }
+
+    if (images !== undefined) {
+      board.images = Array.isArray(images) ? images : [];
+    }
 
     await board.save();
 
-    res.json({ message: "Actualizado", board });
-
+    return res.json({
+      message: "Tablero actualizado correctamente",
+      board,
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({
+      message: "Error al actualizar tablero",
+      error: error.message,
+    });
   }
 };
 
+// ✅ Eliminar tablero
 export const deleteBoard = async (req, res) => {
   try {
-    const board = await Board.findOne({
+    const board = await Board.findOneAndDelete({
       _id: req.params.id,
-      company: req.user.company
+      company: req.user.company,
     });
 
     if (!board) {
-      return res.status(404).json({ message: "No encontrado" });
+      return res.status(404).json({ message: "Tablero no encontrado" });
     }
 
-    // 🔥 eliminar TODAS las imágenes de cloudinary
-    for (let key in board.images) {
-      for (let img of board.images[key]) {
-        await deleteFromCloudinary(img.public_id);
-      }
-    }
-
-    await board.deleteOne();
-
-    res.json({ message: "Tablero eliminado completamente" });
-
+    return res.json({ message: "Tablero eliminado" });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+
+
+
+/**
+ * =========================
+ * 🌐 PÚBLICO
+ * =========================
+ */
+
+// ✅ Obtener tableros por empresa (QR empresa)
+export const publicGetCompanyBoards = async (req, res) => {
+  try {
+    const { publicCode } = req.params;
+
+    const company = await Company.findOne({ publicCode });
+
+    if (!company) {
+      return res.status(404).json({ message: "Empresa no encontrada" });
+    }
+
+    const boards = await Board.find({ company: company._id })
+      .select("code name location description images createdAt")
+      .sort({ createdAt: -1 });
+
+    return res.json({
+      company: {
+        name: company.name,
+        publicCode: company.publicCode,
+      },
+      boards,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+// ✅ Obtener un tablero público por código (QR tablero)
+export const publicGetCompanyBoardByCode = async (req, res) => {
+  try {
+    const { code } = req.params;
+
+    const board = await Board.findOne({ code }).populate(
+      "company",
+      "name publicCode"
+    );
+
+    if (!board) {
+      return res.status(404).json({ message: "Tablero no encontrado" });
+    }
+
+    return res.json({
+      name: board.name,
+      location: board.location,
+      description: board.description,
+      images: board.images,
+      createdAt: board.createdAt,
+      company: {
+        name: board.company?.name,
+        publicCode: board.company?.publicCode,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
   }
 };

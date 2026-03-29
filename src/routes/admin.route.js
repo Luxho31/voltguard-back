@@ -1,6 +1,6 @@
 // src/routes/admin.routes.js
 import express from "express";
-import { createAdmin, getAdmins } from "../controllers/superadmin.controller.js";
+import { createAdmin, getAdmins } from "../controllers/admin.controller.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import { roleMiddleware } from "../middlewares/role.middleware.js";
 
