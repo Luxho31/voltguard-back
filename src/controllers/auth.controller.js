@@ -1,4 +1,3 @@
-// src/controllers/auth.controller.js
 import User from "../models/User.js";
 import { generateToken } from "../utils/generateToken.js";
 import bcrypt from "bcryptjs";
@@ -48,10 +47,10 @@ export const registerSuperAdmin = async (req, res) => {
     try {
         const { firstname, lastname, email, password } = req.body;
 
-        const exists = await User.findOne({ email });
-        if (exists) {
-            return res.status(400).json({ message: "Usuario ya existe" });
-        }
+    const exists = await User.findOne({ email });
+    if (exists) {
+      return res.status(400).json({ message: "Usuario ya existe" });
+    }
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -71,8 +70,8 @@ export const registerSuperAdmin = async (req, res) => {
 };
 
 export const logout = (req, res) => {
-    res.clearCookie("token");
-    res.json({ message: "Sesión cerrada" });
+  res.clearCookie("token");
+  res.json({ message: "Sesión cerrada" });
 };
 
 export const profile = (req, res) => {
