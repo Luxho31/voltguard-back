@@ -1,19 +1,19 @@
 // src/controllers/auth.controller.js
 import User from "../models/User.js";
 import { generateToken } from "../utils/generateToken.js";
-import bcrypt from "bcryptjs"
+import bcrypt from "bcryptjs";
 
 export const login = async (req, res) => {
     const { email, password } = req.body;
 
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(400).json({ message: "Credenciales inválidas" });
+        return res.status(400).json({ message: "Credenciales inválidas" });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ message: "Credenciales inválidas" });
+        return res.status(400).json({ message: "Credenciales inválidas" });
     }
 
     const token = generateToken(user);
@@ -24,21 +24,29 @@ export const login = async (req, res) => {
         sameSite: "lax",
     });
 
-    console.log({
+    // console.log({
+    //     user: {
+    //         id: user._id,
+    //         name: user.name,
+    //         role: user.role,
+    //     },
+    // });
+
+    res.status(200).json({
+        message: "Login exitoso",
         user: {
             id: user._id,
-            name: user.name,
+            firstname: user.firstname,
+            lastname: user.lastname,
             role: user.role,
         },
     });
-
-    res.status(200).json({ message: "Login exitoso" });
 };
 
 // SOLO para inicial (puedes luego protegerlo)
 export const registerSuperAdmin = async (req, res) => {
     try {
-        const { name, email, password } = req.body;
+        const { firstname, lastname, email, password } = req.body;
 
         const exists = await User.findOne({ email });
         if (exists) {
@@ -48,14 +56,15 @@ export const registerSuperAdmin = async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
 
         const user = await User.create({
-            name,
+            firstname,
+            lastname,
             email,
             password: hashedPassword,
-            role: "superadmin",
+            role: "SUPERADMIN",
         });
 
-        console.log(user);
-        res.status(201).json({ message: "Superadmin creado" });
+        // console.log(user);
+        res.status(201).json({ message: "Superadmin creado", user });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -64,4 +73,18 @@ export const registerSuperAdmin = async (req, res) => {
 export const logout = (req, res) => {
     res.clearCookie("token");
     res.json({ message: "Sesión cerrada" });
+};
+
+export const profile = (req, res) => {
+    try {
+        res.json({
+            id: req.user.id,
+            firstname: req.user.firstname,
+            lastname: req.user.lastname,
+            company: req.user.company,
+            role: req.user.role,
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
 };

@@ -33,6 +33,7 @@ export const createBoard = async (req, res) => {
       termografia: await uploadGroup(files.termografia, "termografia")
     };
 
+    // TODO: Corregir esta parte porque debe ser un link del QR
     const code = uuidv4();
 
     const board = await Board.create({

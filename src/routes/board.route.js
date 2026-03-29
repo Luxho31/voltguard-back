@@ -15,7 +15,7 @@ import { upload } from "../middlewares/upload.middleware.js";
 const router = Router();
 
 // solo ADMIN
-router.use(authMiddleware, requireRole("admin"));
+router.use(authMiddleware, requireRole("ADMIN"));
 
 router.post(
   "/",

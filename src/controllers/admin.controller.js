@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 
 export const createAdmin = async (req, res) => {
     try {
-        const { name, email, password, company } = req.body;
+        const { firstname, lastname, email, password, company } = req.body;
 
         const exists = await User.findOne({ email });
         if (exists) {
@@ -13,16 +13,17 @@ export const createAdmin = async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
 
         const admin = await User.create({
-            name,
+            firstname,
+            lastname,
             email,
             password: hashedPassword,
-            role: "admin",
+            role: "ADMIN",
             company,
         });
 
         console.log(admin);
 
-        res.status(201).json({ message: `${admin.name} creado` });
+        res.status(201).json({ message: `${admin.firstname + admin.lastname} creado` });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -30,7 +31,7 @@ export const createAdmin = async (req, res) => {
 
 export const getAdmins = async (req, res) => {
     try {
-        const admins = await User.find({ role: "admin" }).select("-password");
+        const admins = await User.find({ role: "ADMIN" }).select("-password");
 
         res.json(admins);
     } catch (error) {
@@ -41,16 +42,16 @@ export const getAdmins = async (req, res) => {
 export const updateAdmin = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, email, company } = req.body;
+        const { firstname, lastname, email, company } = req.body;
 
         const admin = await User.findByIdAndUpdate(
             id,
-            { name, email, company },
+            { firstname, lastname, email, company },
             { new: true },
         ).select("-password");
 
         console.log(admin);
-        res.json({ message: `${admin.name} actualizado` });
+        res.json({ message: `${admin.firstname + admin.lastname} actualizado` });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -62,7 +63,7 @@ export const deleteAdmin = async (req, res) => {
 
         await User.findByIdAndDelete(id);
 
-        res.json({ message: `${admin.name} eliminado` });
+        res.json({ message: `${admin.firstname + admin.lastname} eliminado` });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
