@@ -1,6 +1,7 @@
 import Board from "../models/Board.js";
 import Company from "../models/Company.js";
 import { v4 as uuidv4 } from "uuid";
+import { formatName } from "../utils/format.js";
 
 /**
  * =========================
