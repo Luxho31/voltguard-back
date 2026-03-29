@@ -29,16 +29,17 @@ const corsOptions = {
             callback(new Error("Not allowed by CORS"));
         }
     },
+    credentials: true
 };
 
 app.use(cors(corsOptions));
 
-app.use("/api/auth", authRoute);
-app.use("/api/company", companyRoute);
-app.use("/api/board", boardRoute);
-app.use("/api/admin", adminRoute);
-app.use("/api/user", userRoute);
-app.use("/api/public", publicRoute);
+app.use("/api/v1/auth", authRoute);
+app.use("/api/v1/company", companyRoute);
+app.use("/api/v1/board", boardRoute);
+app.use("/api/v1/admin", adminRoute);
+app.use("/api/v1/user", userRoute);
+app.use("/api/v1/public", publicRoute);
 
 const PORT = process.env.PORT || 5080;
 

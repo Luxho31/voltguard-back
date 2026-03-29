@@ -16,10 +16,10 @@ import { upload } from "../middlewares/upload.middleware.js";
 
 const router = Router();
 //RUTAS PRIBADAS PARA ADMINISTRADORES DE EMPRESA
-router.post("/create", authMiddleware, requireRole("admin"), createBoard);
-router.get("/", authMiddleware, requireRole("admin"), getCompanyBoards);
-router.get("/:id", authMiddleware, requireRole("admin"), getCompanyBoardByCode);
-router.delete("/:id", authMiddleware, requireRole("admin"), deleteBoard);
+router.post("/create", authMiddleware, requireRole("ADMIN"), createBoard);
+router.get("/", authMiddleware, requireRole("ADMIN"), getCompanyBoards);
+router.get("/:id", authMiddleware, requireRole("ADMIN"), getCompanyBoardByCode);
+router.delete("/:id", authMiddleware, requireRole("ADMIN"), deleteBoard);
 
 //RUTAS PUBLICAS
 router.get("/public/:publicCode", publicGetCompanyBoardByCode);

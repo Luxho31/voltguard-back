@@ -2,14 +2,16 @@ import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema(
     {
-        name: { type: String, required: true },
+        firstname: { type: String, required: true },
+        lastname: { type: String, required: true },
         email: { type: String, required: true },
         password: { type: String, required: true },
-        role: { type: String, enum: ["superadmin", "admin"], default: "admin" },
+        isActive: { type: Boolean },
+        role: { type: String, enum: ["SUPERADMIN", "ADMIN"], default: "ADMIN" },
         company: {
             type: String,
             required: function () {
-                return this.role === "admin";
+                return this.role === "ADMIN";
             },
             default: null,
         },

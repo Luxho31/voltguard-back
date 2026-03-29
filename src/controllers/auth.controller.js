@@ -74,15 +74,10 @@ export const logout = (req, res) => {
   res.json({ message: "Sesión cerrada" });
 };
 
-export const profile = (req, res) => {
+export const getProfile = (req, res) => {
     try {
-        res.json({
-            id: req.user.id,
-            firstname: req.user.firstname,
-            lastname: req.user.lastname,
-            company: req.user.company,
-            role: req.user.role,
-        });
+        console.log(req.user)
+        res.json(req.user);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
