@@ -23,17 +23,42 @@ export const createAdmin = async (req, res) => {
 
         console.log(admin);
 
-        res.status(201).json({ message: `${admin.firstname + admin.lastname} creado` });
+        res.status(201).json({
+            message: `${admin.firstname + admin.lastname} creado`,
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
 
+// export const getAdmins = async (req, res) => {
+//     try {
+//         const admins = await User.find({ role: "ADMIN" }).select("-password");
+
+//         res.json(admins);
+//     } catch (error) {
+//         res.status(500).json({ message: error.message });
+//     }
+// };
+
 export const getAdmins = async (req, res) => {
     try {
-        const admins = await User.find({ role: "ADMIN" }).select("-password");
+        const { page = 0, size = 5 } = req.query;
 
-        res.json(admins);
+        const users = await User.find()
+            .select("-password")
+            .skip(page * size)
+            .limit(Number(size));
+
+        const total = await User.countDocuments();
+
+        res.json({
+            content: users,
+            totalPages: Math.ceil(total / size),
+            totalElement: total,
+            size: Number(size),
+            number: Number(page),
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -51,7 +76,9 @@ export const updateAdmin = async (req, res) => {
         ).select("-password");
 
         console.log(admin);
-        res.json({ message: `${admin.firstname + admin.lastname} actualizado` });
+        res.json({
+            message: `${admin.firstname + admin.lastname} actualizado`,
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
