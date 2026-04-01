@@ -19,9 +19,31 @@ export const createCompany = async (req, res) => {
 };
 
 // GET /api/public/companies
-export const getPublicCompanies = async (req, res) => {
-    const companies = await Company.find().select("name publicCode");
-    res.json(companies);
+// export const getPublicCompanies = async (req, res) => {
+//     const companies = await Company.find().select("name publicCode");
+//     res.json(companies);
+// };
+
+export const getCompanies = async (req, res) => {
+    try {
+        const { page = 0, size = 5 } = req.query;
+
+        const companies = await Company.find()
+            .skip(page * size)
+            .limit(Number(size));
+
+        const total = await Company.countDocuments();
+
+        res.json({
+            content: companies,
+            totalPages: Math.ceil(total / size),
+            totalElement: total,
+            size: Number(size),
+            number: Number(page),
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
 };
 
 // GET /api/public/company/:code/boards
