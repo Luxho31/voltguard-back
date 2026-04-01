@@ -82,3 +82,37 @@ export const getProfile = (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+
+export const register = async (req, res) => {
+    try {
+        const { firstname, lastname, email, password } = req.body;
+
+        const exists = await User.findOne({ email });
+        if (exists) {
+            return res.status(400).json({ message: "Usuario ya existe" });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const user = await User.create({
+            firstname,
+            lastname,
+            email,
+            password: hashedPassword,
+            role: "USER",
+        });
+
+        res.status(201).json({
+            message: "Usuario creado",
+            user: {
+                id: user._id,
+                firstname: user.firstname,
+                lastname: user.lastname,
+                email: user.email,
+                role: user.role,
+            },
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
