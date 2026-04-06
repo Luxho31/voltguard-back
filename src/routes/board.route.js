@@ -27,7 +27,7 @@ router.get("/public/:code", publicGetCompanyBoardByCode);
  * 🔒 RUTAS PRIVADAS (ADMIN)
  * =========================
  */
-router.use(authMiddleware, requireRole("ADMIN"));
+router.use(authMiddleware, requireRole("SUPERADMIN"));
 
 router.post(
   "/",

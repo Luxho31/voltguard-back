@@ -9,7 +9,8 @@ const userSchema = new mongoose.Schema(
         isActive: { type: Boolean, default:true },
         role: { type: String, enum: ["SUPERADMIN", "ADMIN", "USER"], default: "USER" },
         company: {
-            type: String,
+             type: mongoose.Schema.Types.ObjectId,
+    ref: "Company",
             required: function () {
                 return this.role === "ADMIN";
             },

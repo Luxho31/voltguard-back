@@ -19,6 +19,7 @@ export const createBoard = async (req, res) => {
       incluyeNeutro,
       location,
       description,
+      company: companyId
       // images,
     } = req.body;
 
@@ -40,13 +41,22 @@ export const createBoard = async (req, res) => {
       return res.status(401).json({ message: "No autorizado" });
     }
 
-    if (!req.user.company) {
-      return res.status(400).json({
-        message: "El usuario no tiene empresa asignada",
-      });
-    }
+    // if (!req.user.company) {
+    //   return res.status(400).json({
+    //     message: "El usuario no tiene empresa asignada",
+    //   });
+    // }
 
-    const company = await Company.findOne({ publicCode: req.user.company });
+    // const company = await Company.findOne({ publicCode: req.user.company });
+    // const company = await Company.findById(req.user.company);
+
+    if (!companyId) {
+  return res.status(400).json({
+    message: "La empresa es obligatoria",
+  });
+}
+
+const company = await Company.findById(companyId);
 
     if (!company) {
       return res.status(404).json({ message: "Empresa no encontrada" });
