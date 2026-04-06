@@ -20,7 +20,7 @@ export const login = async (req, res) => {
     res.cookie("token", token, {
         httpOnly: true,
         secure: true, // true en producción (https)
-        sameSite: "lax",
+        sameSite: "none", // para permitir cookies en dominios cruzados (frontend/backend separados)
     });
 
     // console.log({
