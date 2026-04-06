@@ -20,7 +20,7 @@ const router = Router();
  * =========================
  */
 router.get("/public/company/:publicCode", publicGetCompanyBoards);
-router.get("/public/board/:code", publicGetCompanyBoardByCode);
+router.get("/public/:code", publicGetCompanyBoardByCode);
 
 /**
  * =========================
