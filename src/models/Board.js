@@ -42,10 +42,11 @@ const boardSchema = new mongoose.Schema(
     },
     images: [{ type: String }],
 
-    company: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Company",
+    companyPublicCode: {
+      type: String,
       required: true,
+      index: true,
+      trim: true,
     },
 
     createdBy: {

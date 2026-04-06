@@ -2,7 +2,7 @@ import { Router } from "express";
 import {
   createBoard,
   getCompanyBoards,
-  getCompanyBoardByCode,
+  getBoardByCode,
   deleteBoard,
   publicGetCompanyBoardByCode,
   publicGetCompanyBoards,
@@ -20,7 +20,7 @@ const router = Router();
  * =========================
  */
 router.get("/public/company/:publicCode", publicGetCompanyBoards);
-router.get("/public/:code", publicGetCompanyBoardByCode);
+router.get("/public/:publicCode/:code", publicGetCompanyBoardByCode);
 
 /**
  * =========================
@@ -40,9 +40,9 @@ router.post(
   createBoard
 );
 
-router.get("/", getCompanyBoards);
-router.get("/:code", getCompanyBoardByCode);
-router.put("/:code", updateBoard);
-router.delete("/:code", deleteBoard);
+router.get("/:publicCode", getCompanyBoards);
+router.get("/:publicCode/:code", getBoardByCode);
+router.put("/:publicCode/:code", updateBoard);
+router.delete("/:publicCode/:code", deleteBoard);
 
 export default router;

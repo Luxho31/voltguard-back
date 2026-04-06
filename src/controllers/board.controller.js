@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 
 /**
  * =========================
- * 🔒 PRIVADO (ADMIN)
+ * 🔒 PRIVADO
  * =========================
  */
 
@@ -19,18 +19,20 @@ export const createBoard = async (req, res) => {
       incluyeNeutro,
       location,
       description,
-      company: companyId
-      // images,
+      companyPublicCode,
     } = req.body;
 
-    // Validaciones básicas
     if (!name || !type) {
       return res.status(400).json({
         message: "Los campos name y type son obligatorios",
       });
     }
 
-    if (tensionNominal === undefined || numeroFases === undefined || incluyeNeutro === undefined) {
+    if (
+      tensionNominal === undefined ||
+      numeroFases === undefined ||
+      incluyeNeutro === undefined
+    ) {
       return res.status(400).json({
         message:
           "Los campos tensionNominal, numeroFases e incluyeNeutro son obligatorios",
@@ -41,22 +43,13 @@ export const createBoard = async (req, res) => {
       return res.status(401).json({ message: "No autorizado" });
     }
 
-    // if (!req.user.company) {
-    //   return res.status(400).json({
-    //     message: "El usuario no tiene empresa asignada",
-    //   });
-    // }
+    if (!companyPublicCode) {
+      return res.status(400).json({
+        message: "Debes haber seleccionado una empresa",
+      });
+    }
 
-    // const company = await Company.findOne({ publicCode: req.user.company });
-    // const company = await Company.findById(req.user.company);
-
-    if (!companyId) {
-  return res.status(400).json({
-    message: "La empresa es obligatoria",
-  });
-}
-
-const company = await Company.findById(companyId);
+    const company = await Company.findOne({ publicCode: companyPublicCode });
 
     if (!company) {
       return res.status(404).json({ message: "Empresa no encontrada" });
@@ -68,17 +61,24 @@ const company = await Company.findById(companyId);
       type: type.trim(),
       tensionNominal: Number(tensionNominal),
       numeroFases: Number(numeroFases),
-      incluyeNeutro: Boolean(incluyeNeutro),
+      incluyeNeutro:
+        incluyeNeutro === true || incluyeNeutro === "true",
       location: location?.trim() || "",
       description: description?.trim() || "",
       images: [],
-      company: company._id, // ✅ FIX
-      createdBy: req.user._id, // mejor usar _id
+      companyPublicCode: company.publicCode,
+      createdBy: req.user._id,
     });
 
     return res.status(201).json({
       message: "Tablero creado correctamente",
-      board,
+      board: {
+        ...board.toObject(),
+        company: {
+          name: company.name,
+          publicCode: company.publicCode,
+        },
+      },
     });
   } catch (error) {
     return res.status(500).json({
@@ -88,49 +88,85 @@ const company = await Company.findById(companyId);
   }
 };
 
-// ✅ Obtener tableros de la empresa del admin
+// ✅ Obtener tableros de una empresa por publicCode
 export const getCompanyBoards = async (req, res) => {
   try {
-    const company = await Company.findOne({ publicCode: req.user.company });
+    const { publicCode } = req.params;
+
+    if (!publicCode) {
+      return res.status(400).json({
+        message: "Debes haber seleccionado una empresa",
+      });
+    }
+
+    const company = await Company.findOne({ publicCode });
 
     if (!company) {
       return res.status(404).json({ message: "Empresa no encontrada" });
     }
 
-    const boards = await Board.find({ company: company._id })
-      .populate("company", "name publicCode")
-      .populate("createdBy", "name email")
+    const boards = await Board.find({ companyPublicCode: publicCode })
+      .populate("createdBy", "firstname lastname email")
       .sort({ createdAt: -1 });
 
-    return res.json(boards);
+    return res.json({
+      company: {
+        name: company.name,
+        publicCode: company.publicCode,
+      },
+      boards: boards.map((board) => ({
+        ...board.toObject(),
+        company: {
+          name: company.name,
+          publicCode: company.publicCode,
+        },
+      })),
+    });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
 };
 
-// ✅ Obtener un tablero por código (solo si pertenece a su empresa)
-export const getCompanyBoardByCode = async (req, res) => {
+// ✅ Obtener un tablero por código y empresa
+export const getBoardByCode = async (req, res) => {
   try {
-    const company = await Company.findOne({ publicCode: req.user.company });
+    const { publicCode, code } = req.params;
+
+    if (!publicCode) {
+      return res.status(400).json({
+        message: "Debes indicar el publicCode de la empresa",
+      });
+    }
+
+    const company = await Company.findOne({ publicCode });
 
     if (!company) {
       return res.status(404).json({ message: "Empresa no encontrada" });
     }
 
     const board = await Board.findOne({
-      code: req.params.code,
-      company: company._id,
-    })
-      .populate("company", "name publicCode")
-      .populate("createdBy", "name email");
+      code,
+      companyPublicCode: publicCode,
+    }).populate("createdBy", "firstname lastname email");
 
     if (!board) {
-      return res.status(404).json({ message: "Tablero no encontrado" });
+      return res.status(404).json({
+        message: "Tablero no encontrado o no pertenece a la empresa indicada",
+      });
     }
 
-    return res.json(board);
+    return res.json({
+      ...board.toObject(),
+      company: {
+        name: company.name,
+        publicCode: company.publicCode,
+      },
+    });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    return res.status(500).json({
+      message: "Error al obtener tablero",
+      error: error.message,
+    });
   }
 };
 
@@ -148,24 +184,32 @@ export const updateBoard = async (req, res) => {
       images,
     } = req.body;
 
+    const { publicCode, code } = req.params;
+
     if (!req.user) {
       return res.status(401).json({ message: "No autorizado" });
     }
 
-    const company = await Company.findOne({ publicCode: req.user.company });
+    if (!publicCode) {
+      return res.status(400).json({
+        message: "Debes indicar el publicCode de la empresa",
+      });
+    }
+
+    const company = await Company.findOne({ publicCode });
 
     if (!company) {
       return res.status(404).json({ message: "Empresa no encontrada" });
     }
 
     const board = await Board.findOne({
-      code: req.params.code,
-      company: company._id,
+      code,
+      companyPublicCode: publicCode,
     });
 
     if (!board) {
       return res.status(404).json({
-        message: "Tablero no encontrado o no pertenece a tu empresa",
+        message: "Tablero no encontrado o no pertenece a la empresa indicada",
       });
     }
 
@@ -185,7 +229,9 @@ export const updateBoard = async (req, res) => {
 
     if (tensionNominal !== undefined) board.tensionNominal = Number(tensionNominal);
     if (numeroFases !== undefined) board.numeroFases = Number(numeroFases);
-    if (incluyeNeutro !== undefined) board.incluyeNeutro = incluyeNeutro;
+    if (incluyeNeutro !== undefined) {
+      board.incluyeNeutro = incluyeNeutro === true || incluyeNeutro === "true";
+    }
     if (location !== undefined) board.location = location.trim();
     if (description !== undefined) board.description = description.trim();
     if (images !== undefined) board.images = Array.isArray(images) ? images : [];
@@ -194,7 +240,13 @@ export const updateBoard = async (req, res) => {
 
     return res.json({
       message: "Tablero actualizado correctamente",
-      board,
+      board: {
+        ...board.toObject(),
+        company: {
+          name: company.name,
+          publicCode: company.publicCode,
+        },
+      },
     });
   } catch (error) {
     return res.status(500).json({
@@ -207,19 +259,29 @@ export const updateBoard = async (req, res) => {
 // ✅ Eliminar tablero
 export const deleteBoard = async (req, res) => {
   try {
-    const company = await Company.findOne({ publicCode: req.user.company });
+    const { publicCode, code } = req.params;
+
+    if (!publicCode) {
+      return res.status(400).json({
+        message: "Debes indicar el publicCode de la empresa",
+      });
+    }
+
+    const company = await Company.findOne({ publicCode });
 
     if (!company) {
       return res.status(404).json({ message: "Empresa no encontrada" });
     }
 
     const board = await Board.findOneAndDelete({
-      code: req.params.code,
-      company: company._id,
+      code,
+      companyPublicCode: publicCode,
     });
 
     if (!board) {
-      return res.status(404).json({ message: "Tablero no encontrado" });
+      return res.status(404).json({
+        message: "Tablero no encontrado o no pertenece a la empresa indicada",
+      });
     }
 
     return res.json({ message: "Tablero eliminado correctamente" });
@@ -230,7 +292,7 @@ export const deleteBoard = async (req, res) => {
 
 /**
  * =========================
- * 🌐 PÚBLICO (USER / DASHBOARD)
+ * 🌐 PÚBLICO / DASHBOARD
  * =========================
  */
 
@@ -245,9 +307,9 @@ export const publicGetCompanyBoards = async (req, res) => {
       return res.status(404).json({ message: "Empresa no encontrada" });
     }
 
-    const boards = await Board.find({ company: company._id })
+    const boards = await Board.find({ companyPublicCode: publicCode })
       .select(
-        "code name type tensionNominal numeroFases incluyeNeutro location description images createdAt"
+        "code name type tensionNominal numeroFases incluyeNeutro location description images createdAt companyPublicCode"
       )
       .sort({ createdAt: -1 });
 
@@ -263,15 +325,21 @@ export const publicGetCompanyBoards = async (req, res) => {
   }
 };
 
-// ✅ Obtener un tablero público por código
+// ✅ Obtener un tablero público por código y empresa
 export const publicGetCompanyBoardByCode = async (req, res) => {
   try {
-    const { code } = req.params;
+    const { publicCode, code } = req.params;
 
-    const board = await Board.findOne({ code }).populate(
-      "company",
-      "name publicCode"
-    );
+    const company = await Company.findOne({ publicCode });
+
+    if (!company) {
+      return res.status(404).json({ message: "Empresa no encontrada" });
+    }
+
+    const board = await Board.findOne({
+      code,
+      companyPublicCode: publicCode,
+    });
 
     if (!board) {
       return res.status(404).json({ message: "Tablero no encontrado" });
@@ -289,8 +357,8 @@ export const publicGetCompanyBoardByCode = async (req, res) => {
       images: board.images,
       createdAt: board.createdAt,
       company: {
-        name: board.company?.name,
-        publicCode: board.company?.publicCode,
+        name: company.name,
+        publicCode: company.publicCode,
       },
     });
   } catch (error) {
