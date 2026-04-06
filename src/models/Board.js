@@ -13,6 +13,23 @@ const boardSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    type: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    tensionNominal: {
+      type: Number,
+      required: true,
+    },
+    numeroFases: {
+      type: Number,
+      required: true,
+    },
+    incluyeNeutro: {
+      type: Boolean,
+      required: true,
+    },
     location: {
       type: String,
       trim: true,

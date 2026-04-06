@@ -1,15 +1,24 @@
-// src/routes/admin.routes.js
-import express from "express";
-import { createAdmin, deleteAdmin, getAdmins, updateAdmin } from "../controllers/admin.controller.js";
+import { Router } from "express";
+import {
+  createAdmin,
+  getAdmins,
+  getAdminById,
+  updateAdmin,
+  deleteAdmin,
+  getAllUsers,
+} from "../controllers/admin.controller.js";
 import { authMiddleware, requireRole } from "../middlewares/auth.middleware.js";
 
-const router = express.Router();
+const router = Router();
 
-// Todas protegidas + solo superadmin
+// 🔒 Solo SUPERADMIN
 router.use(authMiddleware, requireRole("SUPERADMIN"));
+
+router.get("/all", getAllUsers);
 
 router.post("/", createAdmin);
 router.get("/", getAdmins);
+router.get("/:id", getAdminById);
 router.put("/:id", updateAdmin);
 router.delete("/:id", deleteAdmin);
 
