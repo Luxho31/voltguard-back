@@ -38,6 +38,13 @@ export const login = async (req, res) => {
             firstname: user.firstname,
             lastname: user.lastname,
             role: user.role,
+            company: user.company
+        ? {
+            _id: user.company._id,
+            name: user.company.name,
+            publicCode: user.company.publicCode,
+          }
+        : null,
         },
     });
 };
@@ -85,7 +92,7 @@ export const getProfile = (req, res) => {
 
 export const register = async (req, res) => {
     try {
-        const { firstname, lastname, email, password } = req.body;
+        const { firstname, lastname, email, password, company } = req.body;
 
         const exists = await User.findOne({ email });
         if (exists) {
@@ -99,7 +106,8 @@ export const register = async (req, res) => {
             lastname,
             email,
             password: hashedPassword,
-            role: "USER",
+            company,
+            role: "ADMIN",
         });
 
         res.status(201).json({
@@ -109,6 +117,7 @@ export const register = async (req, res) => {
                 firstname: user.firstname,
                 lastname: user.lastname,
                 email: user.email,
+                company: user.company,
                 role: user.role,
             },
         });

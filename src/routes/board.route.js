@@ -27,10 +27,14 @@ router.get("/public/:publicCode/:code", publicGetCompanyBoardByCode);
  * 🔒 RUTAS PRIVADAS (ADMIN)
  * =========================
  */
-router.use(authMiddleware, requireRole("SUPERADMIN"));
+router.use(authMiddleware);
+
+router.get("/:publicCode", getCompanyBoards);
+router.get("/:publicCode/:code", getBoardByCode);
 
 router.post(
   "/",
+  requireRole("SUPERADMIN"),
   upload.fields([
     { name: "tablero", maxCount: 5 },
     { name: "unifilar", maxCount: 5 },
@@ -40,9 +44,16 @@ router.post(
   createBoard
 );
 
-router.get("/:publicCode", getCompanyBoards);
-router.get("/:publicCode/:code", getBoardByCode);
-router.put("/:publicCode/:code", updateBoard);
-router.delete("/:publicCode/:code", deleteBoard);
+
+// router.put("/:publicCode/:code", updateBoard);
+router.put(
+  "/:publicCode/:code",
+  requireRole("SUPERADMIN"),
+  upload.fields([
+    { name: "tablero", maxCount: 10 },
+  ]),
+  updateBoard
+);
+router.delete("/:publicCode/:code", requireRole("SUPERADMIN"), deleteBoard);
 
 export default router;
