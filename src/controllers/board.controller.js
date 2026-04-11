@@ -23,23 +23,43 @@ export const createBoard = async (req, res) => {
       companyPublicCode,
     } = req.body;
 
-    if (!name || !type) return res.status(400).json({ message: "name y type son obligatorios" });
-    if (tensionNominal === undefined || numeroFases === undefined || incluyeNeutro === undefined)
-      return res.status(400).json({ message: "tensionNominal, numeroFases e incluyeNeutro son obligatorios" });
-    if (!req.user) return res.status(401).json({ message: "No autorizado" });
+    if (!name || !type)
+      return res.status(400).json({ message: "name y type son obligatorios" });
+
+    if (
+      tensionNominal === undefined ||
+      numeroFases === undefined ||
+      incluyeNeutro === undefined
+    )
+      return res.status(400).json({
+        message: "tensionNominal, numeroFases e incluyeNeutro son obligatorios",
+      });
+
+    if (!req.user)
+      return res.status(401).json({ message: "No autorizado" });
 
     const company = await Company.findById(companyPublicCode);
-    if (!company) return res.status(404).json({ message: "Empresa no encontrada" });
+    if (!company)
+      return res.status(404).json({ message: "Empresa no encontrada" });
 
-    // Subir archivos a Cloudinary
     const imageFields = ["tablero", "unifilar", "leyenda", "termografia"];
-    const uploadedImages = [];
+
+    const images = {
+      tablero: [],
+      unifilar: [],
+      leyenda: [],
+      termografia: [],
+    };
 
     for (const field of imageFields) {
-      const files = req.files[field] || [];
+      const files = req.files?.[field] || [];
+
       for (const file of files) {
-        const { url } = await uploadToCloudinary(file.buffer, `boards/${field}`);
-        uploadedImages.push(url);
+        const { url } = await uploadToCloudinary(
+          file.buffer,
+          `boards/${field}`
+        );
+        images[field].push(url);
       }
     }
 
@@ -53,14 +73,20 @@ export const createBoard = async (req, res) => {
         incluyeNeutro === true || incluyeNeutro === "true",
       location: location?.trim() || "",
       description: description?.trim() || "",
-      images: uploadedImages,
+      images,
       companyPublicCode: company.publicCode,
       createdBy: req.user._id,
     });
 
     return res.status(201).json({
       message: "Tablero creado correctamente",
-      board: { ...board.toObject(), company: { name: company.name, publicCode: company.publicCode } },
+      board: {
+        ...board.toObject(),
+        company: {
+          name: company.name,
+          publicCode: company.publicCode,
+        },
+      },
     });
   } catch (error) {
     return res.status(500).json({
@@ -69,45 +95,6 @@ export const createBoard = async (req, res) => {
     });
   }
 };
-
-// ✅ Obtener tableros de una empresa por publicCode
-// export const getCompanyBoards = async (req, res) => {
-//   try {
-//     const { publicCode } = req.params;
-
-//     if (!publicCode) {
-//       return res.status(400).json({
-//         message: "Debes haber seleccionado una empresa",
-//       });
-//     }
-
-//     const company = await Company.findOne({ publicCode });
-
-//     if (!company) {
-//       return res.status(404).json({ message: "Empresa no encontrada" });
-//     }
-
-//     const boards = await Board.find({ companyPublicCode: publicCode })
-//       .populate("createdBy", "firstname lastname email")
-//       .sort({ createdAt: -1 });
-
-//     return res.json({
-//       company: {
-//         name: company.name,
-//         publicCode: company.publicCode,
-//       },
-//       boards: boards.map((board) => ({
-//         ...board.toObject(),
-//         company: {
-//           name: company.name,
-//           publicCode: company.publicCode,
-//         },
-//       })),
-//     });
-//   } catch (error) {
-//     return res.status(500).json({ message: error.message });
-//   }
-// };
 
 export const getCompanyBoards = async (req, res) => {
   try {
@@ -209,94 +196,86 @@ export const updateBoard = async (req, res) => {
       incluyeNeutro,
       location,
       description,
-      images,
+      existingImages,
     } = req.body;
 
     const { publicCode, code } = req.params;
 
-    if (!req.user) {
+    if (!req.user)
       return res.status(401).json({ message: "No autorizado" });
-    }
-
-    if (!publicCode) {
-      return res.status(400).json({
-        message: "Debes indicar el publicCode de la empresa",
-      });
-    }
 
     const company = await Company.findOne({ publicCode });
-
-    if (!company) {
+    if (!company)
       return res.status(404).json({ message: "Empresa no encontrada" });
-    }
 
     const board = await Board.findOne({
       code,
       companyPublicCode: publicCode,
     });
 
-    if (!board) {
-      return res.status(404).json({
-        message: "Tablero no encontrado o no pertenece a la empresa indicada",
-      });
-    }
+    if (!board)
+      return res.status(404).json({ message: "Tablero no encontrado" });
 
-    if (name !== undefined) {
-      if (!name.trim()) {
-        return res.status(400).json({ message: "El nombre no puede estar vacío" });
+    if (name !== undefined) board.name = name.trim();
+    if (type !== undefined) board.type = type.trim();
+    if (tensionNominal !== undefined)
+      board.tensionNominal = Number(tensionNominal);
+    if (numeroFases !== undefined)
+      board.numeroFases = Number(numeroFases);
+    if (incluyeNeutro !== undefined)
+      board.incluyeNeutro =
+        incluyeNeutro === "true" || incluyeNeutro === true;
+
+    if (location !== undefined) board.location = location;
+    if (description !== undefined) board.description = description;
+
+    const imageFields = ["tablero", "unifilar", "leyenda", "termografia"];
+
+    const parsedExisting = {
+      tablero: [],
+      unifilar: [],
+      leyenda: [],
+      termografia: [],
+    };
+
+    if (existingImages) {
+      const arr = Array.isArray(existingImages)
+        ? existingImages
+        : JSON.parse(existingImages || "[]");
+
+      for (const url of arr) {
+        if (url.includes("boards/tablero")) parsedExisting.tablero.push(url);
+        else if (url.includes("boards/unifilar")) parsedExisting.unifilar.push(url);
+        else if (url.includes("boards/leyenda")) parsedExisting.leyenda.push(url);
+        else if (url.includes("boards/termografia"))
+          parsedExisting.termografia.push(url);
       }
-      board.name = name.trim();
     }
 
-    if (type !== undefined) {
-      if (!type.trim()) {
-        return res.status(400).json({ message: "El tipo no puede estar vacío" });
+    for (const field of imageFields) {
+      const files = req.files?.[field] || [];
+
+      const uploaded = [];
+
+      for (const file of files) {
+        const { url } = await uploadToCloudinary(
+          file.buffer,
+          `boards/${field}`
+        );
+        uploaded.push(url);
       }
-      board.type = type.trim();
+
+      board.images[field] = [
+        ...parsedExisting[field],
+        ...uploaded,
+      ];
     }
-
-    if (tensionNominal !== undefined) board.tensionNominal = Number(tensionNominal);
-    if (numeroFases !== undefined) board.numeroFases = Number(numeroFases);
-    if (incluyeNeutro !== undefined) {
-      board.incluyeNeutro = incluyeNeutro === true || incluyeNeutro === "true";
-    }
-    if (location !== undefined) board.location = location.trim();
-    if (description !== undefined) board.description = description.trim();
-    if (images !== undefined) board.images = Array.isArray(images) ? images : [];
-
-
-    const files = req.files?.tablero || [];
-
-let newImages = [];
-
-for (const file of files) {
-  const result = await uploadToCloudinary(file.buffer, "boards");
-  newImages.push(result.url);
-}
-
-// imágenes que el usuario dejó
-let existingImages = [];
-
-if (req.body.existingImages) {
-  existingImages = Array.isArray(req.body.existingImages)
-    ? req.body.existingImages
-    : [req.body.existingImages];
-}
-
-// combinar
-board.images = [...existingImages, ...newImages];
 
     await board.save();
 
     return res.json({
       message: "Tablero actualizado correctamente",
-      board: {
-        ...board.toObject(),
-        company: {
-          name: company.name,
-          publicCode: company.publicCode,
-        },
-      },
+      board,
     });
   } catch (error) {
     return res.status(500).json({

@@ -51,6 +51,9 @@ router.put(
   requireRole("SUPERADMIN"),
   upload.fields([
     { name: "tablero", maxCount: 10 },
+    { name: "unifilar", maxCount: 10 },
+    { name: "leyenda", maxCount: 10 },
+    { name: "termografia", maxCount: 10 },
   ]),
   updateBoard
 );

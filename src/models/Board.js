@@ -40,7 +40,12 @@ const boardSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
-    images: [{ type: String }],
+    images: {
+      tablero: [{ type: String }],
+      unifilar: [{ type: String }],
+      leyenda: [{ type: String }],
+      termografia: [{ type: String }],
+    },
 
     companyPublicCode: {
       type: String,
