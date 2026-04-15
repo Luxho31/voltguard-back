@@ -6,6 +6,7 @@ import boardRoute from "./routes/board.route.js";
 import adminRoute from "./routes/admin.route.js";
 import userRoute from "./routes/user.route.js";
 import publicRoute from "./routes/public.route.js";
+import importRoute from "./routes/import.route.js";
 import connectDB from "./config/db.js";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -40,6 +41,7 @@ app.use("/api/v1/board", boardRoute);
 app.use("/api/v1/admin", adminRoute);
 app.use("/api/v1/user", userRoute);
 app.use("/api/v1/public", publicRoute);
+app.use("/api/v1/import", importRoute);
 
 const PORT = process.env.PORT || 5080;
 

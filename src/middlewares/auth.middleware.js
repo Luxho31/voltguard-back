@@ -13,7 +13,7 @@ export const authMiddleware = async (req, res, next) => {
 
         // 🔥 buscar usuario en BD
         const user = await User.findById(decoded.id).populate("company", "name publicCode").select("-password");
-        console.log(user)
+        // console.log(user)
 
         if (!user) {
             return res.status(401).json({ message: "Usuario no existe" });
@@ -29,7 +29,7 @@ export const authMiddleware = async (req, res, next) => {
 };
 
 export const requireRole = (role) => (req, res, next) => {
-    console.log(role)
+    // console.log(role)
     if (req.user.role !== role) {
         return res.status(403).json({ message: "Acceso denegado" });
     }

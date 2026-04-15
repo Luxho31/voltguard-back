@@ -83,7 +83,7 @@ export const logout = (req, res) => {
 
 export const getProfile = (req, res) => {
     try {
-        console.log(req.user)
+        // console.log(req.user)
         res.json(req.user);
     } catch (error) {
         res.status(500).json({ message: error.message });
