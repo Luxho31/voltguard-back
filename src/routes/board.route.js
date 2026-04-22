@@ -38,7 +38,6 @@ router.post(
   upload.fields([
     { name: "tablero", maxCount: 5 },
     { name: "unifilar", maxCount: 5 },
-    { name: "leyenda", maxCount: 5 },
     { name: "termografia", maxCount: 10 },
   ]),
   createBoard
@@ -52,7 +51,6 @@ router.put(
   upload.fields([
     { name: "tablero", maxCount: 10 },
     { name: "unifilar", maxCount: 10 },
-    { name: "leyenda", maxCount: 10 },
     { name: "termografia", maxCount: 10 },
   ]),
   updateBoard
