@@ -12,7 +12,8 @@ export const authMiddleware = async (req, res, next) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
         // 🔥 buscar usuario en BD
-        const user = await User.findById(decoded.id).populate("company", "name publicCode").select("-password");
+        // const user = await User.findById(decoded.id).populate("company", "name publicCode").select("-password");
+        const user = await User.findById(decoded.id).select("-password");
         // console.log(user)
 
         if (!user) {

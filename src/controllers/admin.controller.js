@@ -49,7 +49,7 @@ export const createAdmin = async (req, res) => {
             email: email.trim().toLowerCase(),
             password: hashedPassword,
             role: "ADMIN",
-            company: company.publicCode, // ✅ guardar publicCode, no _id
+            companyPublicCode, // ✅ guardar publicCode, no _id
         });
 
         return res.status(201).json({
@@ -126,10 +126,10 @@ export const getAdmins = async (req, res) => {
             email: admin.email,
             role: admin.role,
             isActive: admin.isActive,
-            company: admin.company
+            company: admin.companyPublicCode
                 ? {
-                    publicCode: admin.company,
-                    name: companyMap.get(admin.company) || "Empresa no encontrada",
+                    publicCode: admin.companyPublicCode,
+                    name: companyMap.get(admin.companyPublicCode) || "Empresa no encontrada",
                 }
                 : null,
             createdAt: admin.createdAt,
