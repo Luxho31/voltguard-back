@@ -15,25 +15,25 @@ const circuitSchema = new mongoose.Schema(
             trim: true,
             default: "",
         },
-        amperaje: {
-            type: Number,
-            default: null,
-        },
-        fase: {
-            type: String,
-            enum: ["R", "S", "T", null],
-            default: null,
-        },
-        tipo: {
-            type: String,
-            enum: ["MONOFASICO", "TRIFASICO", null],
-            default: null,
-        },
-        estado: {
-            type: String,
-            enum: ["ACTIVO", "INACTIVO", "FALLA"],
-            default: "ACTIVO",
-        },
+        // amperaje: {
+        //     type: Number,
+        //     default: null,
+        // },
+        // fase: {
+        //     type: String,
+        //     enum: ["R", "S", "T", null],
+        //     default: null,
+        // },
+        // tipo: {
+        //     type: String,
+        //     enum: ["MONOFASICO", "TRIFASICO", null],
+        //     default: null,
+        // },
+        // estado: {
+        //     type: String,
+        //     enum: ["ACTIVO", "INACTIVO", "FALLA"],
+        //     default: "ACTIVO",
+        // },
     },
     { _id: false },
 );
@@ -104,20 +104,20 @@ const boardSchema = new mongoose.Schema(
             default: "",
         },
 
-        // MAIN BREAKER
-        mainBreaker: {
-            amperaje: { type: Number },
-            polos: { type: Number },
-            marca: { type: String, trim: true },
-            modelo: { type: String, trim: true },
-        },
+        // // MAIN BREAKER
+        // mainBreaker: {
+        //     amperaje: { type: Number },
+        //     polos: { type: Number },
+        //     marca: { type: String, trim: true },
+        //     modelo: { type: String, trim: true },
+        // },
 
-        // PROTECCIÓN
-        proteccion: {
-            sobretension: { type: Boolean, default: false },
-            marca: { type: String, trim: true },
-            modelo: { type: String, trim: true },
-        },
+        // // PROTECCIÓN
+        // proteccion: {
+        //     sobretension: { type: Boolean, default: false },
+        //     marca: { type: String, trim: true },
+        //     modelo: { type: String, trim: true },
+        // },
 
         // CIRCUITOS
         circuits: {

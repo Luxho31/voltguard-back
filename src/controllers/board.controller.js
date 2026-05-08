@@ -25,8 +25,8 @@ export const createBoard = async (req, res) => {
             description,
             boardCode,
             circuits,
-            mainBreaker,
-            proteccion,
+            // mainBreaker,
+            // proteccion,
         } = req.body;
 
         if (!name || !type || !boardCode) {
@@ -104,14 +104,14 @@ export const createBoard = async (req, res) => {
             location: location?.trim() || "",
             description: description?.trim() || "",
             circuits: parsedCircuits,
-            mainBreaker:
-                typeof mainBreaker === "string"
-                    ? JSON.parse(mainBreaker)
-                    : mainBreaker,
-            proteccion:
-                typeof proteccion === "string"
-                    ? JSON.parse(proteccion)
-                    : proteccion,
+            // mainBreaker:
+            //     typeof mainBreaker === "string"
+            //         ? JSON.parse(mainBreaker)
+            //         : mainBreaker,
+            // proteccion:
+            //     typeof proteccion === "string"
+            //         ? JSON.parse(proteccion)
+            //         : proteccion,
             images,
             companyPublicCode: company.publicCode,
             createdBy: req.user._id,
@@ -225,8 +225,8 @@ export const updateBoard = async (req, res) => {
             location,
             description,
             circuits,
-            mainBreaker,
-            proteccion,
+            // mainBreaker,
+            // proteccion,
             existingUnifilar,
             existingTablero,
             existingTermografia,
@@ -274,19 +274,19 @@ export const updateBoard = async (req, res) => {
                 typeof circuits === "string" ? JSON.parse(circuits) : circuits;
         }
 
-        if (mainBreaker !== undefined) {
-            board.mainBreaker =
-                typeof mainBreaker === "string"
-                    ? JSON.parse(mainBreaker)
-                    : mainBreaker;
-        }
+        // if (mainBreaker !== undefined) {
+        //     board.mainBreaker =
+        //         typeof mainBreaker === "string"
+        //             ? JSON.parse(mainBreaker)
+        //             : mainBreaker;
+        // }
 
-        if (proteccion !== undefined) {
-            board.proteccion =
-                typeof proteccion === "string"
-                    ? JSON.parse(proteccion)
-                    : proteccion;
-        }
+        // if (proteccion !== undefined) {
+        //     board.proteccion =
+        //         typeof proteccion === "string"
+        //             ? JSON.parse(proteccion)
+        //             : proteccion;
+        // }
 
         // =========================
         // 🖼 IMÁGENES

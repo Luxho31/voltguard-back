@@ -202,18 +202,18 @@ export const runImport = async (req, res) => {
             termografia: [],
           },
 
-          mainBreaker: {
-            amperaje: parseNumber(row.interruptor_amperaje),
-            polos: parseNumber(row.interruptor_polos),
-            marca: parseString(row.interruptor_marca),
-            modelo: parseString(row.interruptor_modelo),
-          },
+          // mainBreaker: {
+          //   amperaje: parseNumber(row.interruptor_amperaje),
+          //   polos: parseNumber(row.interruptor_polos),
+          //   marca: parseString(row.interruptor_marca),
+          //   modelo: parseString(row.interruptor_modelo),
+          // },
 
-          proteccion: {
-            sobretension: parseBoolean(row.proteccion_sobretension),
-            marca: parseString(row.proteccion_marca),
-            modelo: parseString(row.proteccion_modelo),
-          },
+          // proteccion: {
+          //   sobretension: parseBoolean(row.proteccion_sobretension),
+          //   marca: parseString(row.proteccion_marca),
+          //   modelo: parseString(row.proteccion_modelo),
+          // },
         };
       }
 
@@ -223,10 +223,10 @@ export const runImport = async (req, res) => {
       boardsMap[id].circuits.push({
         circuito: parseString(row.circuito),
         descripcion: parseString(row.circuito_descripcion),
-        amperaje: parseNumber(row.circuito_amperaje),
-        fase: parseString(row.circuito_fase),
-        tipo: parseString(row.circuito_tipo),
-        estado: parseString(row.circuito_estado),
+        // amperaje: parseNumber(row.circuito_amperaje),
+        // fase: parseString(row.circuito_fase),
+        // tipo: parseString(row.circuito_tipo),
+        // estado: parseString(row.circuito_estado),
       });
     }
 
