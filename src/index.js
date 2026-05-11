@@ -11,6 +11,7 @@ import connectDB from "./config/db.js";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import insulationRoute from "./routes/insulation.route.js";
+import boardUnifilarRoute from "./routes/boardUnifilarAi.route.js";
 
 dotenv.config();
 
@@ -44,6 +45,7 @@ app.use("/api/v1/user", userRoute);
 app.use("/api/v1/public", publicRoute);
 app.use("/api/v1/import", importRoute);
 app.use("/api/v1/insulation", insulationRoute);
+app.use("/api/v1/boards-unifilar", boardUnifilarRoute);
 const PORT = process.env.PORT || 5080;
 
 app.listen(PORT, () => {
