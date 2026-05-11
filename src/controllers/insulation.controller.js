@@ -743,3 +743,287 @@ export const runInsulationZip = async (req, res) => {
     cleanupFiles(req.file?.path, workDir);
   }
 };
+
+export const createBoardInsulationMeasurement = async (req, res) => {
+  try {
+    const { code } = req.params;
+
+    const board = await Board.findOne({ code });
+
+    if (!board) {
+      return res.status(404).json({
+        ok: false,
+        message: "Tablero no encontrado.",
+      });
+    }
+
+    const measurementL1G = parseNullableNumber(req.body.measurement_l1_g);
+    const measurementL2G = parseNullableNumber(req.body.measurement_l2_g);
+    const measurementL3G = parseNullableNumber(req.body.measurement_l3_g);
+
+    const isMonofasic = isMonofasicBoard(board);
+
+    if (
+      isMonofasic &&
+      measurementL3G !== undefined &&
+      measurementL3G !== null
+    ) {
+      return res.status(400).json({
+        ok: false,
+        message:
+          "No se puede registrar Fase 3 - Tierra en un tablero monofásico. El campo debe permanecer bloqueado.",
+      });
+    }
+
+    const measurementRecord = {
+      batchCode: uuidv4(),
+      unit: UNIT_MOHM,
+      status: "CONFIRMED",
+      sourceImages: {
+        boardImage: null,
+      },
+      rows: [
+        {
+          description: "Barras generales",
+          measurement_l1_g:
+            measurementL1G === undefined ? null : measurementL1G,
+          measurement_l2_g:
+            measurementL2G === undefined ? null : measurementL2G,
+          measurement_l3_g: isMonofasic
+            ? null
+            : measurementL3G === undefined
+              ? null
+              : measurementL3G,
+          unit: UNIT_MOHM,
+        },
+      ],
+      warnings: [],
+      rawAiResponse: null,
+      importedBy: req.user?._id || null,
+      importedAt: new Date(),
+    };
+
+    board.insulationMeasurements.push(measurementRecord);
+
+    await board.save();
+
+    const savedMeasurement =
+      board.insulationMeasurements[board.insulationMeasurements.length - 1];
+
+    return res.status(201).json({
+      ok: true,
+      message: "Tabla de mediciones de aislamiento registrada correctamente.",
+      data: {
+        boardId: board._id,
+        code: board.code,
+        boardCode: board.boardCode,
+        sistema: board.sistema,
+        numeroFases: board.numeroFases,
+        bloqueaFase3Tierra: isMonofasic,
+        measurement: savedMeasurement,
+      },
+    });
+  } catch (error) {
+    console.error("Error registrando mediciones de aislamiento:", error);
+
+    return res.status(500).json({
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Error registrando mediciones de aislamiento.",
+    });
+  }
+};
+
+const parseNullableNumber = (value) => {
+  if (value === undefined) return undefined;
+  if (value === null || value === "") return null;
+
+  const numberValue = Number(value);
+
+  if (Number.isNaN(numberValue)) {
+    throw new Error("Las mediciones deben ser valores numéricos o null.");
+  }
+
+  return numberValue;
+};
+
+const isMonofasicBoard = (board) => {
+  return board.sistema === "MONOFASICO" || Number(board.numeroFases) < 3;
+};
+
+const getMeasurementByIdOrLatest = (board, measurementId) => {
+  if (!board.insulationMeasurements?.length) {
+    return null;
+  }
+
+  if (measurementId) {
+    return board.insulationMeasurements.id(measurementId);
+  }
+
+  return board.insulationMeasurements[board.insulationMeasurements.length - 1];
+};
+
+export const updateBoardInsulationMeasurement = async (req, res) => {
+  try {
+    const { code, measurementId } = req.params;
+
+    const board = await Board.findOne({ code });
+
+    if (!board) {
+      return res.status(404).json({
+        ok: false,
+        message: "Tablero no encontrado.",
+      });
+    }
+
+    const measurement = getMeasurementByIdOrLatest(board, measurementId);
+
+    if (!measurement) {
+      return res.status(404).json({
+        ok: false,
+        message: "El tablero no tiene mediciones de aislamiento registradas.",
+      });
+    }
+
+    if (!measurement.rows?.length) {
+      measurement.rows = [
+        {
+          description: "Barras generales",
+          measurement_l1_g: null,
+          measurement_l2_g: null,
+          measurement_l3_g: null,
+          unit: "MΩ",
+        },
+      ];
+    }
+
+    const row = measurement.rows[0];
+
+    const measurementL1G = parseNullableNumber(req.body.measurement_l1_g);
+    const measurementL2G = parseNullableNumber(req.body.measurement_l2_g);
+    const measurementL3G = parseNullableNumber(req.body.measurement_l3_g);
+
+    const isMonofasic = isMonofasicBoard(board);
+
+    if (
+      isMonofasic &&
+      measurementL3G !== undefined &&
+      measurementL3G !== null
+    ) {
+      return res.status(400).json({
+        ok: false,
+        message:
+          "No se puede registrar Fase 3 - Tierra en un tablero monofásico. El campo debe permanecer bloqueado.",
+      });
+    }
+
+    if (measurementL1G !== undefined) {
+      row.measurement_l1_g = measurementL1G;
+    }
+
+    if (measurementL2G !== undefined) {
+      row.measurement_l2_g = measurementL2G;
+    }
+
+    if (isMonofasic) {
+      row.measurement_l3_g = null;
+    } else if (measurementL3G !== undefined) {
+      row.measurement_l3_g = measurementL3G;
+    }
+
+    row.description = "Barras generales";
+    row.unit = "MΩ";
+
+    measurement.status = "CONFIRMED";
+
+    await board.save();
+
+    return res.json({
+      ok: true,
+      message: "Mediciones de aislamiento actualizadas correctamente.",
+      data: {
+        boardId: board._id,
+        code: board.code,
+        boardCode: board.boardCode,
+        sistema: board.sistema,
+        numeroFases: board.numeroFases,
+        bloqueaFase3Tierra: isMonofasic,
+        measurement,
+      },
+    });
+  } catch (error) {
+    console.error("Error actualizando mediciones de aislamiento:", error);
+
+    return res.status(500).json({
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Error actualizando mediciones de aislamiento.",
+    });
+  }
+};
+
+export const deleteBoardInsulationMeasurement = async (req, res) => {
+  try {
+    const { code, measurementId } = req.params;
+
+    const board = await Board.findOne({ code });
+
+    if (!board) {
+      return res.status(404).json({
+        ok: false,
+        message: "Tablero no encontrado.",
+      });
+    }
+
+    if (!board.insulationMeasurements?.length) {
+      return res.status(404).json({
+        ok: false,
+        message: "El tablero no tiene mediciones de aislamiento registradas.",
+      });
+    }
+
+    if (measurementId) {
+      const measurement = board.insulationMeasurements.id(measurementId);
+
+      if (!measurement) {
+        return res.status(404).json({
+          ok: false,
+          message: "Registro de medición no encontrado.",
+        });
+      }
+
+      measurement.deleteOne();
+    } else {
+      board.insulationMeasurements = [];
+    }
+
+    await board.save();
+
+    return res.json({
+      ok: true,
+      message: measurementId
+        ? "Registro de medición eliminado correctamente."
+        : "Tabla de mediciones de aislamiento eliminada correctamente.",
+      data: {
+        boardId: board._id,
+        code: board.code,
+        boardCode: board.boardCode,
+        remainingMeasurements: board.insulationMeasurements.length,
+      },
+    });
+  } catch (error) {
+    console.error("Error eliminando mediciones de aislamiento:", error);
+
+    return res.status(500).json({
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Error eliminando mediciones de aislamiento.",
+    });
+  }
+};

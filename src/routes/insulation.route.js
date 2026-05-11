@@ -5,6 +5,9 @@ import {
   validateInsulationZip,
   runInsulationZip,
   testInsulationZip,
+  createBoardInsulationMeasurement,
+  updateBoardInsulationMeasurement,
+  deleteBoardInsulationMeasurement,
 } from "../controllers/insulation.controller.js";
 
 const router = express.Router();
@@ -26,5 +29,8 @@ const upload = multer({
 router.post("/zip/validate", upload.single("file"), validateInsulationZip);
 router.post("/zip/run", upload.single("file"), runInsulationZip);
 router.post("/zip/test", upload.single("file"), testInsulationZip);
+router.post("/boards/:code/measurements", createBoardInsulationMeasurement);
+router.patch("/boards/:code/measurements", updateBoardInsulationMeasurement);
+router.delete("/boards/:code/measurements", deleteBoardInsulationMeasurement);
 
 export default router;
