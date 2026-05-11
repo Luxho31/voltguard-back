@@ -80,7 +80,7 @@ const insulationMeasurementSchema = new mongoose.Schema(
         sourceImages: {
             boardImage: {
                 type: String,
-                required: true,
+                default: null,
             },
         },
         rows: {
