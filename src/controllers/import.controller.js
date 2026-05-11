@@ -28,6 +28,33 @@ const parseBoolean = (value) => {
   return null;
 };
 
+const parseCircuitType = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+
+  const text = String(value)
+    .trim()
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  if (
+    text === "MONOFASICO" ||
+    text === "1F" ||
+    text === "BIFASICO"
+  ) {
+    return "MONOFASICO";
+  }
+
+  if (
+    text === "TRIFASICO" ||
+    text === "3F"
+  ) {
+    return "TRIFASICO";
+  }
+
+  return null;
+};
+
 // 🧹 limpiar nulls
 const cleanObject = (obj) => {
   return Object.fromEntries(
@@ -223,10 +250,7 @@ export const runImport = async (req, res) => {
       boardsMap[id].circuits.push({
         circuito: parseString(row.circuito),
         descripcion: parseString(row.circuito_descripcion),
-        // amperaje: parseNumber(row.circuito_amperaje),
-        // fase: parseString(row.circuito_fase),
-        // tipo: parseString(row.circuito_tipo),
-        // estado: parseString(row.circuito_estado),
+        tipo: parseCircuitType(row.circuito_tipo),
       });
     }
 

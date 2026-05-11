@@ -10,6 +10,7 @@ import importRoute from "./routes/import.route.js";
 import connectDB from "./config/db.js";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import insulationRoute from "./routes/insulation.route.js";
 
 dotenv.config();
 
@@ -42,7 +43,7 @@ app.use("/api/v1/admin", adminRoute);
 app.use("/api/v1/user", userRoute);
 app.use("/api/v1/public", publicRoute);
 app.use("/api/v1/import", importRoute);
-
+app.use("/api/v1/insulation", insulationRoute);
 const PORT = process.env.PORT || 5080;
 
 app.listen(PORT, () => {

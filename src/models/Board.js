@@ -15,27 +15,97 @@ const circuitSchema = new mongoose.Schema(
             trim: true,
             default: "",
         },
-        // amperaje: {
-        //     type: Number,
-        //     default: null,
-        // },
-        // fase: {
-        //     type: String,
-        //     enum: ["R", "S", "T", null],
-        //     default: null,
-        // },
-        // tipo: {
-        //     type: String,
-        //     enum: ["MONOFASICO", "TRIFASICO", null],
-        //     default: null,
-        // },
-        // estado: {
-        //     type: String,
-        //     enum: ["ACTIVO", "INACTIVO", "FALLA"],
-        //     default: "ACTIVO",
-        // },
+        tipo: {
+            type: String,
+            enum: ["MONOFASICO", "TRIFASICO", null],
+            default: null,
+        },
     },
     { _id: false },
+);
+
+// =========================
+// 🧪 INSULATION MEASUREMENTS
+// =========================
+// =========================
+// 🧪 INSULATION MEASUREMENTS
+// =========================
+const insulationMeasurementRowSchema = new mongoose.Schema(
+    {
+        description: {
+            type: String,
+            trim: true,
+            default: "Barras generales",
+        },
+
+        measurement_l1_g: {
+            type: Number,
+            default: null,
+        },
+
+        measurement_l2_g: {
+            type: Number,
+            default: null,
+        },
+
+        measurement_l3_g: {
+            type: Number,
+            default: null,
+        },
+
+        unit: {
+            type: String,
+            default: "MΩ",
+        },
+    },
+    { _id: false },
+);
+
+const insulationMeasurementSchema = new mongoose.Schema(
+    {
+        batchCode: {
+            type: String,
+            required: true,
+            index: true,
+        },
+        unit: {
+            type: String,
+            default: "MΩ",
+        },
+        status: {
+            type: String,
+            enum: ["PENDING_REVIEW", "CONFIRMED", "FAILED"],
+            default: "PENDING_REVIEW",
+        },
+        sourceImages: {
+            boardImage: {
+                type: String,
+                required: true,
+            },
+        },
+        rows: {
+            type: [insulationMeasurementRowSchema],
+            default: [],
+        },
+        warnings: {
+            type: [String],
+            default: [],
+        },
+        rawAiResponse: {
+            type: mongoose.Schema.Types.Mixed,
+            default: null,
+        },
+        importedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            default: null,
+        },
+        importedAt: {
+            type: Date,
+            default: Date.now,
+        },
+    },
+    { _id: true },
 );
 
 // =========================
@@ -139,6 +209,12 @@ const boardSchema = new mongoose.Schema(
                 type: [String],
                 default: [],
             },
+        },
+
+        // MEDICIONES DE AISLAMIENTO
+        insulationMeasurements: {
+            type: [insulationMeasurementSchema],
+            default: [],
         },
 
         // ESTADO
