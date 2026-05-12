@@ -757,6 +757,11 @@ export const createBoardInsulationMeasurement = async (req, res) => {
       });
     }
 
+    const description =
+      typeof req.body.description === "string" && req.body.description.trim()
+        ? req.body.description.trim()
+        : "Barras generales";
+
     const measurementL1G = parseNullableNumber(req.body.measurement_l1_g);
     const measurementL2G = parseNullableNumber(req.body.measurement_l2_g);
     const measurementL3G = parseNullableNumber(req.body.measurement_l3_g);
@@ -784,7 +789,7 @@ export const createBoardInsulationMeasurement = async (req, res) => {
       },
       rows: [
         {
-          description: "Barras generales",
+          description,
           measurement_l1_g:
             measurementL1G === undefined ? null : measurementL1G,
           measurement_l2_g:
@@ -894,12 +899,17 @@ export const updateBoardInsulationMeasurement = async (req, res) => {
           measurement_l1_g: null,
           measurement_l2_g: null,
           measurement_l3_g: null,
-          unit: "MΩ",
+          unit: UNIT_MOHM,
         },
       ];
     }
 
     const row = measurement.rows[0];
+
+    const description =
+      typeof req.body.description === "string" && req.body.description.trim()
+        ? req.body.description.trim()
+        : row.description || "Barras generales";
 
     const measurementL1G = parseNullableNumber(req.body.measurement_l1_g);
     const measurementL2G = parseNullableNumber(req.body.measurement_l2_g);
@@ -919,6 +929,8 @@ export const updateBoardInsulationMeasurement = async (req, res) => {
       });
     }
 
+    row.description = description;
+
     if (measurementL1G !== undefined) {
       row.measurement_l1_g = measurementL1G;
     }
@@ -933,9 +945,9 @@ export const updateBoardInsulationMeasurement = async (req, res) => {
       row.measurement_l3_g = measurementL3G;
     }
 
-    row.description = "Barras generales";
-    row.unit = "MΩ";
+    row.unit = UNIT_MOHM;
 
+    measurement.unit = UNIT_MOHM;
     measurement.status = "CONFIRMED";
 
     await board.save();
