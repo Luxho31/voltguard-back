@@ -7,10 +7,6 @@ import Board from "../models/Board.js";
 import Company from "../models/Company.js";
 import AdmZip from "adm-zip";
 
-const getBoardCodeFromFileName = (filename) => {
-    return path.parse(filename).name.trim().toUpperCase();
-};
-
 const bufferToDataUrl = (buffer, mimetype) => {
     const base64 = buffer.toString("base64");
     return `data:${mimetype};base64,${base64}`;
@@ -29,11 +25,36 @@ const getMimeTypeFromFileName = (filename) => {
     return mimeTypes[ext] || null;
 };
 
-const uploadBufferToCloudinary = (buffer, boardCode, originalName) => {
+const getImageKindFromFileName = (filename) => {
+    const name = filename.toLowerCase();
+
+    if (name.includes("unifilar")) return "unifilar";
+
+    if (
+        name.includes("termografia") ||
+        name.includes("termica") ||
+        name.includes("thermal")
+    ) {
+        return "termografia";
+    }
+
+    return "tablero";
+};
+
+const getBoardCodeFromGroupedImage = (filename) => {
+    return path.parse(filename).name.split("_")[0].trim().toUpperCase();
+};
+
+const uploadBoardImageToCloudinary = async ({
+    buffer,
+    boardCode,
+    originalName,
+    kind,
+}) => {
     return new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
             {
-                folder: `boards/${boardCode}/unifilar`,
+                folder: `boards/${boardCode}/${kind}`,
                 resource_type: "image",
                 public_id: path.parse(originalName).name,
             },
@@ -46,6 +67,8 @@ const uploadBufferToCloudinary = (buffer, boardCode, originalName) => {
         stream.end(buffer);
     });
 };
+
+// -------------
 
 const boardUnifilarSchema = {
     type: "object",
@@ -398,32 +421,32 @@ Devuelve únicamente JSON válido.
 };
 
 const normalizeCircuits = (circuits = [], sistema = null) => {
-  const cleanCircuits = circuits
-    .filter((c) => c?.circuito)
-    .map((c) => {
-      const circuito = c.circuito.trim().toUpperCase();
+    const cleanCircuits = circuits
+        .filter((c) => c?.circuito)
+        .map((c) => {
+            const circuito = c.circuito.trim().toUpperCase();
 
-      return {
-        circuito,
-        descripcion:
-          circuito === "IG"
-            ? "Interruptor General"
-            : c.descripcion || c.description || "",
-        tipo: c.tipo || null,
-      };
-    });
+            return {
+                circuito,
+                descripcion:
+                    circuito === "IG"
+                        ? "Interruptor General"
+                        : c.descripcion || c.description || "",
+                tipo: c.tipo || null,
+            };
+        });
 
-  const hasIG = cleanCircuits.some((c) => c.circuito === "IG");
+    const hasIG = cleanCircuits.some((c) => c.circuito === "IG");
 
-  if (!hasIG) {
-    cleanCircuits.unshift({
-      circuito: "IG",
-      descripcion: "Interruptor General",
-      tipo: sistema || null,
-    });
-  }
+    if (!hasIG) {
+        cleanCircuits.unshift({
+            circuito: "IG",
+            descripcion: "Interruptor General",
+            tipo: sistema || null,
+        });
+    }
 
-  return cleanCircuits;
+    return cleanCircuits;
 };
 
 export const importBoardsFromUnifilarZip = async (req, res) => {
@@ -471,15 +494,57 @@ export const importBoardsFromUnifilarZip = async (req, res) => {
             });
         }
 
-        const results = [];
+        const groupedImages = {};
 
         for (const entry of imageEntries) {
             const originalName = path.basename(entry.entryName);
-            const boardCode = getBoardCodeFromFileName(originalName);
-            const mimetype = getMimeTypeFromFileName(originalName);
-            const buffer = entry.getData();
+
+            const boardCode = getBoardCodeFromGroupedImage(originalName);
+
+            const kind = getImageKindFromFileName(originalName);
+
+            if (!groupedImages[boardCode]) {
+                groupedImages[boardCode] = {
+                    boardCode,
+                    unifilar: null,
+                    tablero: [],
+                    termografia: [],
+                };
+            }
+
+            const imageData = {
+                entry,
+                originalName,
+                buffer: entry.getData(),
+                mimetype: getMimeTypeFromFileName(originalName),
+                kind,
+            };
+
+            if (kind === "unifilar") {
+                groupedImages[boardCode].unifilar = imageData;
+            } else if (kind === "termografia") {
+                groupedImages[boardCode].termografia.push(imageData);
+            } else {
+                groupedImages[boardCode].tablero.push(imageData);
+            }
+        }
+
+        const results = [];
+
+        for (const group of Object.values(groupedImages)) {
+            const { boardCode } = group;
 
             try {
+                if (!group.unifilar) {
+                    results.push({
+                        boardCode,
+                        status: "failed",
+                        error: "No se encontró imagen unifilar para este tablero.",
+                    });
+
+                    continue;
+                }
+
                 const exists = await Board.findOne({
                     boardCode,
                     companyPublicCode: companyCode,
@@ -487,54 +552,80 @@ export const importBoardsFromUnifilarZip = async (req, res) => {
 
                 if (exists) {
                     results.push({
-                        file: originalName,
                         boardCode,
                         status: "skipped",
                         error: "Ya existe un tablero con ese código.",
                     });
+
                     continue;
                 }
 
                 const aiResult = await analyzeUnifilarWithOpenAI({
-                    buffer,
-                    mimetype,
+                    buffer: group.unifilar.buffer,
+                    mimetype: group.unifilar.mimetype,
                     boardCode,
                 });
 
-                const imageUrl = await uploadBufferToCloudinary(
-                    buffer,
-                    boardCode,
-                    originalName,
-                );
+                const images = {
+                    tablero: [],
+                    unifilar: [],
+                    termografia: [],
+                };
+
+                const allImages = [
+                    group.unifilar,
+                    ...group.tablero,
+                    ...group.termografia,
+                ];
+
+                for (const img of allImages) {
+                    const url = await uploadBoardImageToCloudinary({
+                        buffer: img.buffer,
+                        boardCode,
+                        originalName: img.originalName,
+                        kind: img.kind,
+                    });
+
+                    images[img.kind].push(url);
+                }
 
                 const board = await Board.create({
                     code: uuidv4(),
 
                     boardCode,
+
                     name: aiResult.name || boardCode,
+
                     type: aiResult.type || "No identificado",
+
                     location: aiResult.location || "",
+
                     description: aiResult.description || "",
 
                     companyPublicCode: companyCode,
 
                     tensionNominal: aiResult.tensionNominal,
+
                     numeroFases: aiResult.numeroFases,
+
                     incluyeNeutro: aiResult.incluyeNeutro ?? false,
+
                     sistema: aiResult.sistema,
 
-                    circuits: normalizeCircuits(aiResult.circuits, aiResult.sistema),
+                    circuits: normalizeCircuits(
+                        aiResult.circuits,
+                        aiResult.sistema,
+                    ),
 
-                    unifilarImage: imageUrl,
-                    rawAiUnifilarResponse: aiResult,
+                    images,
 
-                    status: "PENDING_REVIEW",
+                    estadoGeneral: "OPERATIVO",
+
                     createdBy:
                         req.user?._id || "ID_REAL_DE_USUARIO_PARA_PRUEBAS",
                 });
 
                 results.push({
-                    file: originalName,
                     boardCode,
                     status: "created",
                     boardId: board._id,
@@ -542,7 +633,6 @@ export const importBoardsFromUnifilarZip = async (req, res) => {
                 });
             } catch (error) {
                 results.push({
-                    file: originalName,
                     boardCode,
                     status: "failed",
                     error: error.message,
@@ -552,7 +642,7 @@ export const importBoardsFromUnifilarZip = async (req, res) => {
 
         return res.status(201).json({
             ok: true,
-            total: imageEntries.length,
+            total: Object.keys(groupedImages).length,
             created: results.filter((r) => r.status === "created").length,
             skipped: results.filter((r) => r.status === "skipped").length,
             failed: results.filter((r) => r.status === "failed").length,
