@@ -179,52 +179,109 @@ Si no es claro:
 "type": "NO_IDENTIFICADO"
 
 4. tensionNominal
-Extrae:
-- 220
-- 380
-- 440
-- 480
-etc.
 
-Si aparece:
-"380V"
-"380 V"
-"3x380/220V"
+Extrae la tensión nominal principal visible del tablero.
 
-entonces:
-tensionNominal = 380
+Ejemplos:
+- 220V => 220
+- 380V => 380
+- 400V => 400
+- 440V => 440
+- 480V => 480
+- 3x380/220V => 380
 
-5. numeroFases
-Determina:
-- 1
-- 2
-- 3
+Si existen varias tensiones:
+prioriza la tensión principal del tablero.
 
-Reglas:
-- "1Ø" => 1
-- "3Ø" => 3
-- trifásico => 3
-- monofásico => 1
+Si no puede determinarse:
+null
 
-6. incluyeNeutro
+5. numeroFases / sistema / neutro
+
+Debes determinar correctamente si el tablero es MONOFASICO o TRIFASICO.
+
+=========================
+TABLERO MONOFÁSICO
+=========================
+
+El tablero es MONOFASICO si aparece cualquiera de estas señales:
+
+- "1Ø"
+- "1F"
+- "1 fase"
+- "1x"
+- "F+N"
+- "L+N"
+- "fase y neutro"
+- "2 hilos"
+- breaker 1P
+- una sola línea de fase
+- tensión 220V sin presencia de tres fases
+
+En ese caso devuelve:
+
+numeroFases: 1
+sistema: "MONOFASICO"
+
+=========================
+TABLERO TRIFÁSICO
+=========================
+
+El tablero es TRIFASICO si aparece cualquiera de estas señales:
+
+- "3Ø"
+- "3F"
+- "3 fases"
+- "3x"
+- "R S T"
+- "L1 L2 L3"
+- "R S T N"
+- breaker 3P
+- tres líneas de fase
+- tensión 380V
+- tensión 400V
+- tensión 440V
+- tensión 480V
+
+En ese caso devuelve:
+
+numeroFases: 3
+sistema: "TRIFASICO"
+
+=========================
+REGLA IMPORTANTE SOBRE 220V
+=========================
+
+220V NO significa automáticamente TRIFASICO.
+
+- Si solo aparece una fase + neutro => MONOFASICO
+- Si aparecen tres fases => TRIFASICO
+
+=========================
+incluyeNeutro
+=========================
+
 Debe ser TRUE si aparece:
-- "+ N"
-- "(N)"
+
+- N
+- +N
+- (N)
+- F+N
+- L+N
 - neutro
-- conductor neutro
 
 Caso contrario FALSE.
 
-7. sistema
-Determina:
-- "MONOFASICO"
-- "TRIFASICO"
+=========================
+REGLAS IMPORTANTES
+=========================
 
-Reglas:
-- 3 fases => TRIFASICO
-- 1 fase => MONOFASICO
+- No asumir TRIFASICO por defecto.
+- Si el tablero parece residencial o pequeño y usa F+N, probablemente es MONOFASICO.
+- Si existen dudas, usa warnings.
+- Prioriza siempre el diagrama eléctrico por encima del texto descriptivo.
 
-8. location
+6. location
 Extrae ubicación física o sector.
 
 Ejemplos:
@@ -236,13 +293,13 @@ Ejemplos:
 Si no existe:
 null
 
-9. description
+7. description
 Genera una descripción técnica breve usando SOLO información visible.
 
 Ejemplo:
 "Tablero general trifásico 380V del sector E."
 
-10. circuits
+8. circuits
 
 Extrae TODOS los circuitos visibles del tablero.
 
@@ -263,7 +320,7 @@ interruptor principal -> barras -> derivaciones.
 Cada circuito debe contener:
 
 - circuito
-- description
+- descripcion
 - tipo
 
 REGLAS:
@@ -276,7 +333,7 @@ Corresponde al identificador visible:
 - C3
 - etc.
 
-2. description
+2. descripcion
 Corresponde EXACTAMENTE al nombre de la carga o tablero alimentado por ese circuito.
 
 Ejemplos:
@@ -286,23 +343,52 @@ Ejemplos:
 - TV.SS.
 - RESERVA
 
-NO dejar vacío description si existe texto asociado al circuito.
+NO dejar vacío descripcion si existe texto asociado al circuito.
 
 3. tipo
 
-Inferir:
-- TRIFASICO
-- MONOFASICO
-- null
+Determina el tipo del circuito.
 
-REGLAS:
-- breaker "3x" => TRIFASICO
-- presencia de 3 fases => TRIFASICO
-- 1P => MONOFASICO
+=========================
+CIRCUITO MONOFÁSICO
+=========================
+
+El circuito es MONOFASICO si:
+- aparece 1P
+- aparece F+N
+- aparece L+N
+- aparece 1Ø
+- aparece 1x
+- existe una sola fase
+- carga pequeña residencial
+- iluminación o tomacorrientes simples
+
+=========================
+CIRCUITO TRIFÁSICO
+=========================
+
+El circuito es TRIFASICO si:
+- aparece 3P
+- aparece 3x
+- R,S,T
+- L1,L2,L3
+- tres fases
+- motores
+- tableros derivados trifásicos
+
+=========================
+REGLA IMPORTANTE
+=========================
+
+No asumir TRIFASICO por defecto.
+
+Si no puede determinarse claramente:
+tipo = null
 
 4. INTERRUPTOR GENERAL (IG)
 
-Si existe un breaker principal antes de las derivaciones, debe registrarse como circuito "IG".
+Si existe un breaker principal antes de las derivaciones:
+- debe registrarse como circuito "IG"
 
 Para el circuito IG:
 - circuito: "IG"
@@ -327,12 +413,6 @@ Ejemplo correcto:
   "tipo": "TRIFASICO"
 }
 
-Ejemplo incorrecto:
-{
-  "circuito": "IG",
-  "descripcion": "TABLERO TG-SE / TAB. ADOSADO 380V / viene del TGN-1 / C1 / C2..."
-}
-
 5. ORDEN
 
 Los circuitos deben devolverse EXACTAMENTE en el orden visual:
@@ -352,7 +432,7 @@ Aunque un circuito:
 
 igual debe incluirse si es identificable.
 
-11. warnings
+9. warnings
 Agrega advertencias SOLO si:
 - texto ilegible,
 - información ambigua,
@@ -591,36 +671,22 @@ export const importBoardsFromUnifilarZip = async (req, res) => {
 
                 const board = await Board.create({
                     code: uuidv4(),
-
                     boardCode,
-
                     name: aiResult.name || boardCode,
-
                     type: aiResult.type || "No identificado",
-
                     location: aiResult.location || "",
-
                     description: aiResult.description || "",
-
                     companyPublicCode: companyCode,
-
                     tensionNominal: aiResult.tensionNominal,
-
                     numeroFases: aiResult.numeroFases,
-
                     incluyeNeutro: aiResult.incluyeNeutro ?? false,
-
                     sistema: aiResult.sistema,
-
                     circuits: normalizeCircuits(
                         aiResult.circuits,
                         aiResult.sistema,
                     ),
-
                     images,
-
                     estadoGeneral: "OPERATIVO",
-
                     createdBy:
                         req.user?._id || "ID_REAL_DE_USUARIO_PARA_PRUEBAS",
                 });
