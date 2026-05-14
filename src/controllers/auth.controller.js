@@ -21,6 +21,7 @@ export const login = async (req, res) => {
         httpOnly: true,
         secure: true, // true en producción (https)
         sameSite: "none", // para permitir cookies en dominios cruzados (frontend/backend separados)
+        path: "/",
     });
 
     // console.log({
@@ -39,12 +40,12 @@ export const login = async (req, res) => {
             lastname: user.lastname,
             role: user.role,
             company: user.company
-        ? {
-            _id: user.company._id,
-            name: user.company.name,
-            publicCode: user.company.publicCode,
-          }
-        : null,
+                ? {
+                      _id: user.company._id,
+                      name: user.company.name,
+                      publicCode: user.company.publicCode,
+                  }
+                : null,
         },
     });
 };
@@ -54,10 +55,10 @@ export const registerSuperAdmin = async (req, res) => {
     try {
         const { firstname, lastname, email, password } = req.body;
 
-    const exists = await User.findOne({ email });
-    if (exists) {
-      return res.status(400).json({ message: "Usuario ya existe" });
-    }
+        const exists = await User.findOne({ email });
+        if (exists) {
+            return res.status(400).json({ message: "Usuario ya existe" });
+        }
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -77,8 +78,13 @@ export const registerSuperAdmin = async (req, res) => {
 };
 
 export const logout = (req, res) => {
-  res.clearCookie("token");
-  res.json({ message: "Sesión cerrada" });
+    res.clearCookie("token", {
+        httpOnly: true,
+        secure: true,
+        sameSite: "none",
+        path: "/",
+    });
+    res.status(200).json({ message: "Sesión cerrada" });
 };
 
 export const getProfile = (req, res) => {
