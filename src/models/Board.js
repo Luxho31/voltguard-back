@@ -17,7 +17,7 @@ const circuitSchema = new mongoose.Schema(
         },
         tipo: {
             type: String,
-            enum: ["MONOFASICO", "TRIFASICO", null],
+            enum: ["MONOFÁSICO", "TRIFÁSICO", null],
             default: null,
         },
     },
@@ -230,6 +230,66 @@ const boardSchema = new mongoose.Schema(
             index: true,
             trim: true,
         },
+
+        /***************** NFPA 70E SECTION *****************/
+        nfpa: {
+            // --- Campos Técnicos de Entrada (Reales o Inferidos) ---
+            amperajePrincipal: {
+                type: Number,
+                default: null, // Guardamos el amperaje detectado en el plano (ej. 250)
+            },
+            tipoInterruptor: {
+                type: String,
+                default: "Caja Moldeada", // Almacena el resultado final (Caja Moldeada, Riel DIN, Caja Abierta)
+            },
+            corrienteCortocircuito: {
+                type: Number,
+                default: null, // Guardamos el kA (ej. 22) inferido o leído
+            },
+            distanciaTrabajo: {
+                type: String,
+                default: "45.72 cm (18 in)", // Fijo por defecto para baja tensión
+            },
+
+            // --- Campos de Salida Calculados por la IA / Norma ---
+            distanciaArco: {
+                type: String, // Cambiado a String para guardar unidad ej: "0.74 m"
+                default: "",
+            },
+            energiaIncidente: {
+                type: String, // Cambiado a String para guardar unidad ej: "3.13 cal/cm²"
+                default: "",
+            },
+            categoriaRiesgo: {
+                type: Number, // 1, 2, 3 o 4
+                default: null,
+            },
+            limiteAproximacion: {
+                type: String, // Unidades métricas ej: "1.07 m"
+                default: "",
+            },
+            distanciaRestringida: {
+                type: String, // Unidades métricas ej: "0.31 m"
+                default: "",
+            },
+            guantesClase: {
+                type: String, // Ej: "Clase 00 Protección con guantes de piel"
+                default: "",
+            },
+
+            // --- Dataset de EPP Ordenado de Cabeza a Pies ---
+            eppRequerido: {
+                type: [String], // Un array de strings directo es más limpio y rápido de renderizar en tu listado
+                default: [],
+            },
+
+            // --- Control de Flujo Automático ---
+            calculadoPorIA: {
+                type: Boolean,
+                default: false,
+            },
+        },
+        /************************************************** */
 
         // USUARIO
         createdBy: {

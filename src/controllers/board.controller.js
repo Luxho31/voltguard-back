@@ -179,10 +179,9 @@ export const getBoardByCode = async (req, res) => {
             return res.status(404).json({ message: "Empresa no encontrada" });
         }
 
-        if (req.user.role === "ADMIN") {
-            const userCompany = await Company.findById(req.user.company);
-            if (userCompany.publicCode !== publicCode) {
-                return res.status(403).json({ message: "No autorizado" });
+        if (req.user?.role === "ADMIN") {
+            if (req.user.companyPublicCode !== publicCode) {
+                return res.status(403).json({ message: "No autorizado para esta empresa" });
             }
         }
 
@@ -192,7 +191,10 @@ export const getBoardByCode = async (req, res) => {
         }).populate("createdBy", "firstname lastname email");
 
         if (!board) {
-            return res.status(404).json({ message: "Tablero no encontrado" });
+            return res.status(404).json({ 
+                message: "Tablero no encontrado en la base de datos",
+                buscado: { code, companyPublicCode: publicCode }
+            });
         }
 
         return res.json({
