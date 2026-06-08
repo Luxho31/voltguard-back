@@ -17,7 +17,7 @@ const circuitSchema = new mongoose.Schema(
         },
         tipo: {
             type: String,
-            enum: ["MONOFÁSICO", "TRIFÁSICO", null],
+            enum: ["MONOFASICO", "TRIFASICO", null],
             default: null,
         },
     },
@@ -297,6 +297,13 @@ const boardSchema = new mongoose.Schema(
             ref: "User",
             required: true,
         },
+        
+        assignedDocuments: [
+            {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "Document"
+            }
+        ]
     },
     {
         timestamps: true,

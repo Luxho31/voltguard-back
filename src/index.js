@@ -14,6 +14,7 @@ import cookieParser from "cookie-parser";
 import insulationRoute from "./routes/insulation.route.js";
 import boardUnifilarRoute from "./routes/boardUnifilarAi.route.js";
 import SubscriptionRoute from "./routes/subscription.route.js";
+import documentRoute from "./routes/document.route.js";
 
 dotenv.config();
 
@@ -49,6 +50,8 @@ app.use("/api/v1/import", importRoute);
 app.use("/api/v1/insulation", insulationRoute);
 app.use("/api/v1/boards-unifilar", boardUnifilarRoute);
 app.use("/api/v1/subscription", SubscriptionRoute);
+app.use("/api/v1/document", documentRoute);
+
 const PORT = process.env.PORT || 5080;
 
 app.listen(PORT, () => {

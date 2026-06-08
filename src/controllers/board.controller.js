@@ -188,7 +188,9 @@ export const getBoardByCode = async (req, res) => {
         const board = await Board.findOne({
             code,
             companyPublicCode: publicCode,
-        }).populate("createdBy", "firstname lastname email");
+        })
+        .populate("createdBy", "firstname lastname email")
+        .populate("assignedDocuments");;
 
         if (!board) {
             return res.status(404).json({ 
@@ -429,7 +431,7 @@ export const publicGetCompanyBoardByCode = async (req, res) => {
         const board = await Board.findOne({
             code,
             companyPublicCode: publicCode,
-        });
+        }).populate("assignedDocuments");;
 
         if (!board) {
             return res.status(404).json({ message: "Tablero no encontrado" });
@@ -444,5 +446,44 @@ export const publicGetCompanyBoardByCode = async (req, res) => {
         });
     } catch (error) {
         return res.status(500).json({ message: error.message });
+    }
+};
+
+
+// ✅ Asignar documentos previamente subidos a un tablero específico
+export const assignDocumentsToBoard = async (req, res) => {
+    try {
+        const { publicCode, code } = req.params;
+        const { documentIds } = req.body; // Se espera un array: ["id_doc_1", "id_doc_2"]
+
+        if (!Array.isArray(documentIds)) {
+            return res.status(400).json({ 
+                message: "documentIds es requerido y debe ser un arreglo de IDs" 
+            });
+        }
+
+        // Buscamos el tablero usando la misma lógica de tus rutas existentes (publicCode y code)
+        const board = await Board.findOne({ code, companyPublicCode: publicCode });
+
+        if (!board) {
+            return res.status(404).json({ message: "Tablero no encontrado" });
+        }
+
+        // Reemplazamos las asignaciones viejas por las nuevas seleccionadas en el frontend
+        board.assignedDocuments = documentIds;
+        await board.save();
+
+        // Devolvemos el tablero con la información completa de los documentos
+        const populatedBoard = await Board.findById(board._id).populate("assignedDocuments");
+
+        return res.status(200).json({
+            message: "Documentos asignados correctamente",
+            assignedDocuments: populatedBoard.assignedDocuments
+        });
+    } catch (error) {
+        return res.status(500).json({
+            message: "Error al asignar documentos al tablero",
+            error: error.message,
+        });
     }
 };

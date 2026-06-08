@@ -7,6 +7,7 @@ import {
   publicGetCompanyBoardByCode,
   publicGetCompanyBoards,
   updateBoard,
+  assignDocumentsToBoard,
 } from "../controllers/board.controller.js";
 
 import { authMiddleware, requireRole } from "../middlewares/auth.middleware.js";
@@ -43,6 +44,11 @@ router.post(
   createBoard
 );
 
+router.put(
+  "/:publicCode/:code/assign-documents",
+  requireRole("SUPERADMIN"), // O el rol mínimo que consideres pertinente
+  assignDocumentsToBoard
+);
 
 // router.put("/:publicCode/:code", updateBoard);
 router.put(
