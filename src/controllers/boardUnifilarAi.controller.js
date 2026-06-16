@@ -26,28 +26,30 @@ const getMimeTypeFromFileName = (filename) => {
 };
 
 const getImageKindFromFileName = (filename) => {
-  const name = filename.toLowerCase();
+    const name = filename.toLowerCase();
 
-  if (name.includes("unifilar")) {
-    return "unifilar";
-  }
+    if (name.includes("unifilar")) {
+        return "unifilar";
+    }
 
-  if (
-    name.includes("_itm") ||
-    name.includes("interruptor") ||
-    name.includes("breaker")
-  ) {
-    return "itm";
-  }
+    if (
+        name.includes("_itm") ||
+        name.includes("interruptor") ||
+        name.includes("breaker")
+    ) {
+        return "itm";
+    }
 
-  if (
-    name.includes("termografia") ||
-    name.includes("termica")
-  ) {
-    return "termografia";
-  }
+    if (name.includes("termografia") || name.includes("termica")) {
+        return "termografia";
+    }
 
-  return "tablero";
+    // Corrección: Asegurar explícitamente el tipo 'tablero' para imágenes normales/principales
+    if (name.includes("normal") || name.includes("tablero")) {
+        return "normal";
+    }
+
+    return "tablero";
 };
 
 const getBoardCodeFromGroupedImage = (filename) => {
@@ -93,7 +95,7 @@ const boardUnifilarSchema = {
         "sistema",
         "circuits",
 
-        "mainBreakerAmperage", 
+        "mainBreakerAmperage",
         "mainBreakerSigla",
 
         "warnings",
@@ -124,7 +126,7 @@ const boardUnifilarSchema = {
         },
 
         mainBreakerAmperage: { type: ["number", "null"] }, // <-- NUEVO
-        mainBreakerSigla: { type: ["string", "null"] },    // <-- NUEVO (Ej: "MCCB", "ACB")
+        mainBreakerSigla: { type: ["string", "null"] }, // <-- NUEVO (Ej: "MCCB", "ACB")
 
         warnings: {
             type: "array",
@@ -134,62 +136,58 @@ const boardUnifilarSchema = {
 };
 
 const itmSchema = {
-  type: "object",
-  additionalProperties: false,
+    type: "object",
+    additionalProperties: false,
 
-  required: [
-    "manufacturer",
-    "model",
-    "amperage",
-    "voltage",
-    "breakingCapacityKA",
-    "breakerType",
-    "warnings"
-  ],
+    required: [
+        "manufacturer",
+        "model",
+        "amperage",
+        "voltage",
+        "breakingCapacityKA",
+        "breakerType",
+        "warnings",
+    ],
 
-  properties: {
-    manufacturer: {
-      type: ["string", "null"]
+    properties: {
+        manufacturer: {
+            type: ["string", "null"],
+        },
+
+        model: {
+            type: ["string", "null"],
+        },
+
+        amperage: {
+            type: ["number", "null"],
+        },
+
+        voltage: {
+            type: ["number", "null"],
+        },
+
+        breakingCapacityKA: {
+            type: ["number", "null"],
+        },
+
+        breakerType: {
+            type: ["string", "null"],
+        },
+
+        warnings: {
+            type: "array",
+            items: {
+                type: "string",
+            },
+        },
     },
-
-    model: {
-      type: ["string", "null"]
-    },
-
-    amperage: {
-      type: ["number", "null"]
-    },
-
-    voltage: {
-      type: ["number", "null"]
-    },
-
-    breakingCapacityKA: {
-      type: ["number", "null"]
-    },
-
-    breakerType: {
-      type: ["string", "null"]
-    },
-
-    warnings: {
-      type: "array",
-      items: {
-        type: "string"
-      }
-    }
-  }
 };
 
-const analyzeITMWithOpenAI = async ({
-  images,
-  boardCode,
-}) => {
-
-  const content = [
-    {
-      type: "input_text",
-      text: `
+const analyzeITMWithOpenAI = async ({ images }) => {
+    const content = [
+        {
+            type: "input_text",
+            text: `
 Analiza fotografías de un interruptor principal industrial.
 
 Extrae:
@@ -213,53 +211,43 @@ Si no se ve:
 null
 
 Devuelve únicamente JSON.
-`
+`,
+        },
+    ];
+
+    for (const img of images) {
+        const imageDataUrl = bufferToDataUrl(img.buffer, img.mimetype);
+
+        content.push({
+            type: "input_image",
+            image_url: imageDataUrl,
+            detail: "high",
+        });
     }
-  ];
 
-  for (const img of images) {
+    const response = await openai.responses.create({
+        model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
 
-    const imageDataUrl = bufferToDataUrl(
-      img.buffer,
-      img.mimetype
-    );
+        input: [
+            {
+                role: "user",
+                content,
+            },
+        ],
 
-    content.push({
-      type: "input_image",
-      image_url: imageDataUrl,
-      detail: "high",
-    });
-  }
-
-  const response =
-    await openai.responses.create({
-
-      model:
-        process.env.OPENAI_MODEL ||
-        "gpt-4.1-mini",
-
-      input: [
-        {
-          role: "user",
-          content,
+        text: {
+            format: {
+                type: "json_schema",
+                name: "itm_extraction",
+                strict: true,
+                schema: itmSchema,
+            },
         },
-      ],
 
-      text: {
-        format: {
-          type: "json_schema",
-          name: "itm_extraction",
-          strict: true,
-          schema: itmSchema,
-        },
-      },
-
-      max_output_tokens: 1500,
+        max_output_tokens: 1500,
     });
 
-  return JSON.parse(
-    response.output_text
-  );
+    return JSON.parse(response.output_text);
 };
 
 const analyzeUnifilarWithOpenAI = async ({ buffer, mimetype, boardCode }) => {
@@ -490,11 +478,14 @@ Corresponde al identificador visible:
 2. descripcion
 Corresponde EXACTAMENTE al nombre de la carga o tablero alimentado por ese circuito.
 
+REGLA CRÍTICA DE INTERCONEXIÓN:
+- Presta extrema atención si el circuito indica una procedencia de alimentación ("ALIMENTACIÓN DESDE:", "VIENE DE:") o un destino ("A TABLERO:").
+- Transcribe esa relación de forma EXACTA. Si el plano dice "ALIMENTACIÓN DESDE: T-01" o "ALIMENTACIÓN DESDE TABLERO T001", ponlo exactamente así en la descripción del circuito para mantener la trazabilidad.
+
 Ejemplos:
 - TABLERO ESTABILIZADO CUSTOMER CENTER (TS-CC)
-- TABLERO CUSTOMER CENTER (T-CC)
-- TAB. OFICINAS
-- TV.SS.
+- C2 - ALIMENTA A TABLERO T0002
+- IG - VIENE DE TABLERO PRINCIPAL T0001 || VIENE TABLERO PRINCIPAL T0001
 - RESERVA
 
 NO dejar vacío descripcion si existe texto asociado al circuito.
@@ -684,35 +675,51 @@ const normalizeCircuits = (circuits = [], sistema = null) => {
 };
 
 const generateNfpaData = (unifilarData, itmData = null) => {
-    const voltage = unifilarData.tensionNominal || itmData?.voltage || 380;
-    const amperaje = itmData?.amperage || unifilarData.mainBreakerAmperage || 150;
-
-    // 1. Resolver tipo de interruptor
-    let tipoInterruptor = "Caja Moldeada"; 
-    const siglaDetectada = (itmData?.breakerType || unifilarData.mainBreakerSigla || "").toUpperCase();
-
-    if (siglaDetectada.includes("MCCB") || siglaDetectada.includes("MOLDEADA")) {
-        tipoInterruptor = "Caja Moldeada";
-    } else if (siglaDetectada.includes("ACB") || siglaDetectada.includes("AIRE") || siglaDetectada.includes("BASTIDOR")) {
-        tipoInterruptor = "Caja Abierta (Bastidor)";
-    } else if (siglaDetectada.includes("MCB") || siglaDetectada.includes("MINIATURA") || siglaDetectada.includes("DIN")) {
-        tipoInterruptor = "Riel DIN (Miniatura)";
-    } else {
-        if (amperaje <= 125) {
-            tipoInterruptor = "Riel DIN (Miniatura)";
-        } else if (amperaje > 1000) {
-            tipoInterruptor = "Caja Abierta (Bastidor)";
-        }
+    // 🚨 REGLA ESTRICTA: Si no hay foto del ITM, NO se calcula etiqueta para este tablero
+    if (!itmData) {
+        return null;
     }
 
-    // 2. Resolver Cortocircuito (kA)
-    let shortCircuitCurrent = 22; 
-    if (amperaje <= 125) shortCircuitCurrent = 10;
-    else if (amperaje > 125 && amperaje <= 400) shortCircuitCurrent = 22;
-    else if (amperaje > 400 && amperaje <= 1000) shortCircuitCurrent = 35;
-    else if (amperaje > 1000) shortCircuitCurrent = 50;
+    const voltage = itmData.voltage || 380;
+    const amperaje = itmData.amperage || 150;
 
-    // 3. Determinar los datos de arco basados en rangos (Estructura fija para evitar fallos de scope)
+    // 1. Resolver tipo de interruptor únicamente con la foto del ITM
+    let tipoInterruptor = "Caja Moldeada";
+    const siglaDetectada = (itmData.breakerType || "").toUpperCase();
+
+    if (
+        siglaDetectada.includes("MCCB") ||
+        siglaDetectada.includes("MOLDEADA") ||
+        siglaDetectada.includes("CAJA MOLDEADA")
+    ) {
+        tipoInterruptor = "Caja Moldeada";
+    } else if (
+        siglaDetectada.includes("ACB") ||
+        siglaDetectada.includes("AIRE") ||
+        siglaDetectada.includes("BASTIDOR")
+    ) {
+        tipoInterruptor = "Caja Abierta (Bastidor)";
+    } else if (
+        siglaDetectada.includes("MCB") ||
+        siglaDetectada.includes("MINIATURA") ||
+        siglaDetectada.includes("DIN")
+    ) {
+        tipoInterruptor = "Riel DIN (Miniatura)";
+    } else {
+        if (amperaje <= 125) tipoInterruptor = "Riel DIN (Miniatura)";
+        else if (amperaje > 1000) tipoInterruptor = "Caja Abierta (Bastidor)";
+    }
+
+    // 2. Resolver Cortocircuito (kA) real de la foto
+    let shortCircuitCurrent = itmData.breakingCapacityKA || null;
+    if (!shortCircuitCurrent) {
+        if (amperaje <= 125) shortCircuitCurrent = 10;
+        else if (amperaje > 125 && amperaje <= 400) shortCircuitCurrent = 22;
+        else if (amperaje > 400 && amperaje <= 1000) shortCircuitCurrent = 35;
+        else if (amperaje > 1000) shortCircuitCurrent = 50;
+    }
+
+    // 3. Determinar los datos de arco basados en el amperaje del ITM físico
     let arcData = {
         riskCategory: 1,
         incidentEnergy: "3.13 cal/cm²",
@@ -722,8 +729,8 @@ const generateNfpaData = (unifilarData, itmData = null) => {
             "Lentes de Seguridad de Policarbonato con protección UV",
             "Camisa de manga larga y pantalón de trabajo AR (Mínimo 4 cal/cm² a 8 cal/cm²)",
             "Guantes de Cuero para Trabajo Mecánico o Dieléctricos según corresponda",
-            "Zapatos Dieléctricos de Seguridad con puntera de composite"
-        ]
+            "Zapatos Dieléctricos de Seguridad con puntera de composite",
+        ],
     };
 
     if (amperaje > 125 && amperaje <= 400) {
@@ -736,8 +743,8 @@ const generateNfpaData = (unifilarData, itmData = null) => {
                 "Lentes de Seguridad de Policarbonato con protectores laterales",
                 "Camisa de Trabajo AR y Pantalón de Trabajo Industrial AR (Resistentes a 8 cal/cm²)",
                 "Guantes de Cuero para Trabajo Mecánico",
-                "Zapatos Dieléctricos de Seguridad"
-            ]
+                "Zapatos Dieléctricos de Seguridad",
+            ],
         };
     } else if (amperaje > 400) {
         arcData = {
@@ -749,12 +756,12 @@ const generateNfpaData = (unifilarData, itmData = null) => {
                 "Lentes de Seguridad de Policarbonato (obligatorios bajo la escafandra)",
                 "Traje de Arco de Alta Densidad (Chaqueta y Pantalón Peto ignífugo multicapa)",
                 "Guantes Dieléctricos de Goma con Protectores de Cuero (Sobreguantes)",
-                "Botas Dieléctricas de Caña Alta (Hule/Goma)"
-            ]
+                "Botas Dieléctricas de Caña Alta (Hule/Goma)",
+            ],
         };
     }
 
-    // 4. Determinar los límites de choque según el Voltaje
+    // 4. Determinar los límites de choque según el Voltaje del ITM
     let limiteAproximacion = "1.07 m";
     let distanciaRestringida = "0.31 m";
     let shockGloveClass = "Clase 00 (Hasta 500 VCA) con guantes de piel";
@@ -769,7 +776,6 @@ const generateNfpaData = (unifilarData, itmData = null) => {
         shockGloveClass = "Clase 1 (Hasta 7,500 VCA) con guantes de piel";
     }
 
-    // 5. Retorno limpio mapeando el objeto arcData
     return {
         amperajePrincipal: amperaje,
         tipoInterruptor,
@@ -782,7 +788,8 @@ const generateNfpaData = (unifilarData, itmData = null) => {
         distanciaRestringida,
         guantesClase: shockGloveClass,
         eppRequerido: arcData.eppRequerido,
-        calculadoPorIA: true
+        calculadoPorIA: true,
+        origenDatos: "FOTO_ITM_REAL",
     };
 };
 
@@ -831,6 +838,34 @@ export const importBoardsFromUnifilarZip = async (req, res) => {
             });
         }
 
+        // =========================================================================
+        // 🚨 CONTROL DE PESO MÁXIMO POR IMAGEN (MÁX. 10MB POR ARCHIVO)
+        // =========================================================================
+        const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10 Megabytes en bytes
+        const archivosPesados = [];
+
+        for (const entry of imageEntries) {
+            // entry.header.uncompressedSize nos da el peso real de la imagen antes de subirla
+            if (entry.header.uncompressedSize > MAX_IMAGE_SIZE) {
+                const pesoMB = (
+                    entry.header.uncompressedSize /
+                    (1024 * 1024)
+                ).toFixed(2);
+                archivosPesados.push(
+                    `${path.basename(entry.entryName)} (${pesoMB} MB)`,
+                );
+            }
+        }
+
+        // Si se detecta aunque sea una imagen que supere los 10MB, detenemos todo el lote
+        if (archivosPesados.length > 0) {
+            return res.status(400).json({
+                ok: false,
+                error: `Importación cancelada. Se detectaron imágenes individuales que superan el límite de 10MB permitido por Cloudinary e IA: ${archivosPesados.join(", ")}. Por favor, reduce su resolución o comprímelas antes de volver a armar el archivo ZIP.`,
+            });
+        }
+        // =========================================================================
+
         const groupedImages = {};
 
         for (const entry of imageEntries) {
@@ -857,14 +892,6 @@ export const importBoardsFromUnifilarZip = async (req, res) => {
                 mimetype: getMimeTypeFromFileName(originalName),
                 kind,
             };
-
-            // if (kind === "unifilar") {
-            //     groupedImages[boardCode].unifilar = imageData;
-            // } else if (kind === "termografia") {
-            //     groupedImages[boardCode].termografia.push(imageData);
-            // } else {
-            //     groupedImages[boardCode].tablero.push(imageData);
-            // }
 
             // ... (Reemplaza el cierre del bucle for (const entry of imageEntries) por esto)
             if (kind === "unifilar") {
@@ -915,82 +942,41 @@ export const importBoardsFromUnifilarZip = async (req, res) => {
                     boardCode,
                 });
 
-                // const images = {
-                //     tablero: [],
-                //     unifilar: [],
-                //     termografia: [],
-                // };
-
-                // const allImages = [
-                //     group.unifilar,
-                //     ...group.tablero,
-                //     ...group.termografia,
-                // ];
-
-                // for (const img of allImages) {
-                //     const url = await uploadBoardImageToCloudinary({
-                //         buffer: img.buffer,
-                //         boardCode,
-                //         originalName: img.originalName,
-                //         kind: img.kind,
-                //     });
-
-                //     images[img.kind].push(url);
-                // }
-
-                // const board = await Board.create({
-                //     code: uuidv4(),
-                //     boardCode,
-                //     name: aiResult.name || boardCode,
-                //     type: aiResult.type || "No identificado",
-                //     location: aiResult.location || "",
-                //     description: aiResult.description || "",
-                //     companyPublicCode: companyCode,
-                //     tensionNominal: aiResult.tensionNominal,
-                //     numeroFases: aiResult.numeroFases,
-                //     incluyeNeutro: aiResult.incluyeNeutro ?? false,
-                //     sistema: aiResult.sistema,
-                //     circuits: normalizeCircuits(
-                //         aiResult.circuits,
-                //         aiResult.sistema,
-                //     ),
-                //     images,
-                //     estadoGeneral: "OPERATIVO",
-                //     createdBy:
-                //         req.user?._id || "ID_REAL_DE_USUARIO_PARA_PRUEBAS",
-                // });
-
-                // ... (Colocar justo debajo de const aiResult = await analyzeUnifilarWithOpenAI(...))
-
                 // 1. Ejecutar análisis opcional de la foto del interruptor físico si se subió al ZIP
                 let itmResult = null;
                 if (group.itm && group.itm.length > 0) {
                     try {
                         itmResult = await analyzeITMWithOpenAI({
                             images: group.itm,
-                            boardCode
+                            boardCode,
                         });
                     } catch (itmError) {
-                        console.error(`Error analizando ITM para ${boardCode}, continuando solo con unifilar...`, itmError);
+                        console.error(
+                            `Error analizando ITM para ${boardCode}, continuando solo con unifilar...`,
+                            itmError,
+                        );
                     }
                 }
 
                 // 2. Generar el payload NFPA 70E automáticamente combinando los dos caminos
-                const nfpaCalculatedData = generateNfpaData(aiResult, itmResult);
+                const nfpaCalculatedData = generateNfpaData(
+                    aiResult,
+                    itmResult,
+                );
 
                 // 3. Subida de imágenes a Cloudinary (Agrupamos también el itm en la subida si procede)
                 const images = {
                     tablero: [],
                     unifilar: [],
                     termografia: [],
-                    itm: [] // Añade itm si tu schema final de imágenes lo soporta
+                    itm: [], // Añade itm si tu schema final de imágenes lo soporta
                 };
 
                 const allImages = [
                     group.unifilar,
                     ...group.tablero,
                     ...group.termografia,
-                    ...group.itm
+                    ...group.itm,
                 ].filter(Boolean);
 
                 for (const img of allImages) {
@@ -1000,7 +986,7 @@ export const importBoardsFromUnifilarZip = async (req, res) => {
                         originalName: img.originalName,
                         kind: img.kind,
                     });
-                    
+
                     if (images[img.kind]) {
                         images[img.kind].push(url);
                     } else {
@@ -1027,10 +1013,15 @@ export const importBoardsFromUnifilarZip = async (req, res) => {
                     ),
                     images,
                     estadoGeneral: "OPERATIVO",
-                    createdBy: req.user?._id || "ID_REAL_DE_USUARIO_PARA_PRUEBAS",
-                    
-                    nfpa: nfpaCalculatedData // <-- ENTRADA DE LA DATA GENERADA AUTOMÁTICAMENTE
+                    createdBy:
+                        req.user?._id || "ID_REAL_DE_USUARIO_PARA_PRUEBAS",
+
+                    nfpa: nfpaCalculatedData, // <-- ENTRADA DE LA DATA GENERADA AUTOMÁTICAMENTE
                 });
+
+                console.log(
+                    `✅ Tablero ${boardCode} registrado con éxito en la BD. ID: ${board._id}`,
+                );
 
                 // ... (El resto de tu código de inserción "results.push" se queda igual hacia abajo)
 
@@ -1041,6 +1032,11 @@ export const importBoardsFromUnifilarZip = async (req, res) => {
                     warnings: aiResult.warnings || [],
                 });
             } catch (error) {
+                console.error(
+                    `❌ Error procesando el tablero [${boardCode}]:`,
+                    error,
+                );
+
                 results.push({
                     boardCode,
                     status: "failed",
