@@ -403,7 +403,7 @@ export const publicGetCompanyBoards = async (req, res) => {
 
         const boards = await Board.find({ companyPublicCode: publicCode })
             .select(
-                "code boardCode name type tensionNominal numeroFases incluyeNeutro location description images createdAt",
+                "code boardCode name type tensionNominal numeroFases incluyeNeutro location description images nfpa createdAt",
             )
             .sort({ createdAt: -1 });
 
