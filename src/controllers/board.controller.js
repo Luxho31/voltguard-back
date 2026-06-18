@@ -487,3 +487,28 @@ export const assignDocumentsToBoard = async (req, res) => {
         });
     }
 };
+
+export const getBoardScanInfo = async (req, res) => {
+  try {
+    const { boardCode } = req.params;
+
+    // Buscamos el tablero en MongoDB usando el índice de boardCode
+    const board = await Board.findOne({ boardCode });
+
+    if (!board) {
+      return res.status(404).json({ message: "Tablero no encontrado." });
+    }
+
+    /* Enviamos el companyPublicCode al frontend.
+      Nota: Revisa cómo guardas el código de la empresa en tu Schema de MongoDB 
+      (puede ser board.companyPublicCode o board.publicCode). Asegúrate de mandar el string correcto.
+    */
+    return res.status(200).json({
+      companyPublicCode: board.companyPublicCode || board.publicCode, 
+    });
+
+  } catch (error) {
+    console.error("Error en getBoardScanInfo:", error);
+    return res.status(500).json({ message: "Error interno del servidor al procesar el QR." });
+  }
+};
