@@ -8,7 +8,6 @@ import {
   publicGetCompanyBoards,
   updateBoard,
   assignDocumentsToBoard,
-  getBoardScanInfo,
 } from "../controllers/board.controller.js";
 
 import { authMiddleware, requireRole } from "../middlewares/auth.middleware.js";
@@ -63,7 +62,5 @@ router.put(
   updateBoard
 );
 router.delete("/:publicCode/:code", requireRole("SUPERADMIN"), deleteBoard);
-
-router.get("/scan-info/:boardCode", getBoardScanInfo);
 
 export default router;
