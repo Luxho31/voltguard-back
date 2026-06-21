@@ -29,20 +29,32 @@ export const createBoard = async (req, res) => {
             // proteccion,
         } = req.body;
 
-        if (!name || !type || !boardCode) {
+        // if (!name || !type || !boardCode) {
+        //     return res
+        //         .status(400)
+        //         .json({ message: "name, type y boardCode son obligatorios" });
+        // }
+
+        // if (
+        //     tensionNominal === undefined ||
+        //     numeroFases === undefined ||
+        //     incluyeNeutro === undefined
+        // ) {
+        //     return res.status(400).json({
+        //         message:
+        //             "tensionNominal, numeroFases e incluyeNeutro son obligatorios",
+        //     });
+        // }
+
+        if (!name || !boardCode) {
             return res
                 .status(400)
-                .json({ message: "name, type y boardCode son obligatorios" });
+                .json({ message: "name y boardCode son obligatorios" });
         }
 
-        if (
-            tensionNominal === undefined ||
-            numeroFases === undefined ||
-            incluyeNeutro === undefined
-        ) {
+        if (incluyeNeutro === undefined) {
             return res.status(400).json({
-                message:
-                    "tensionNominal, numeroFases e incluyeNeutro son obligatorios",
+                message: "incluyeNeutro es obligatorio",
             });
         }
 
@@ -91,13 +103,25 @@ export const createBoard = async (req, res) => {
                 typeof circuits === "string" ? JSON.parse(circuits) : circuits;
         }
 
+        // Convertimos strings vacíos o NaN en undefined de forma segura antes de guardar
+        const cleanTension =
+            tensionNominal === "" || isNaN(Number(tensionNominal))
+                ? undefined
+                : Number(tensionNominal);
+
+        const cleanFases =
+            numeroFases === "" || isNaN(Number(numeroFases))
+                ? undefined
+                : Number(numeroFases);
+
         const board = await Board.create({
             code: uuidv4(),
             boardCode: boardCode.trim(),
             name: name.trim(),
-            type: type.trim(),
-            tensionNominal: Number(tensionNominal),
-            numeroFases: Number(numeroFases),
+            type: type ? type.trim() : undefined,
+            // 👈 Usamos las variables ya limpias aquí
+            tensionNominal: cleanTension,
+            numeroFases: cleanFases,
             incluyeNeutro: incluyeNeutro === true || incluyeNeutro === "true",
             sistema,
             estadoGeneral,
@@ -115,6 +139,8 @@ export const createBoard = async (req, res) => {
             images,
             companyPublicCode: company.publicCode,
             createdBy: req.user._id,
+
+            nfpa: undefined
         });
 
         return res.status(201).json({
@@ -181,7 +207,9 @@ export const getBoardByCode = async (req, res) => {
 
         if (req.user?.role === "ADMIN") {
             if (req.user.companyPublicCode !== publicCode) {
-                return res.status(403).json({ message: "No autorizado para esta empresa" });
+                return res
+                    .status(403)
+                    .json({ message: "No autorizado para esta empresa" });
             }
         }
 
@@ -189,13 +217,13 @@ export const getBoardByCode = async (req, res) => {
             code,
             companyPublicCode: publicCode,
         })
-        .populate("createdBy", "firstname lastname email")
-        .populate("assignedDocuments");;
+            .populate("createdBy", "firstname lastname email")
+            .populate("assignedDocuments");
 
         if (!board) {
-            return res.status(404).json({ 
+            return res.status(404).json({
                 message: "Tablero no encontrado en la base de datos",
-                buscado: { code, companyPublicCode: publicCode }
+                buscado: { code, companyPublicCode: publicCode },
             });
         }
 
@@ -431,7 +459,7 @@ export const publicGetCompanyBoardByCode = async (req, res) => {
         const board = await Board.findOne({
             code,
             companyPublicCode: publicCode,
-        }).populate("assignedDocuments");;
+        }).populate("assignedDocuments");
 
         if (!board) {
             return res.status(404).json({ message: "Tablero no encontrado" });
@@ -449,7 +477,6 @@ export const publicGetCompanyBoardByCode = async (req, res) => {
     }
 };
 
-
 // ✅ Asignar documentos previamente subidos a un tablero específico
 export const assignDocumentsToBoard = async (req, res) => {
     try {
@@ -457,13 +484,17 @@ export const assignDocumentsToBoard = async (req, res) => {
         const { documentIds } = req.body; // Se espera un array: ["id_doc_1", "id_doc_2"]
 
         if (!Array.isArray(documentIds)) {
-            return res.status(400).json({ 
-                message: "documentIds es requerido y debe ser un arreglo de IDs" 
+            return res.status(400).json({
+                message:
+                    "documentIds es requerido y debe ser un arreglo de IDs",
             });
         }
 
         // Buscamos el tablero usando la misma lógica de tus rutas existentes (publicCode y code)
-        const board = await Board.findOne({ code, companyPublicCode: publicCode });
+        const board = await Board.findOne({
+            code,
+            companyPublicCode: publicCode,
+        });
 
         if (!board) {
             return res.status(404).json({ message: "Tablero no encontrado" });
@@ -474,11 +505,13 @@ export const assignDocumentsToBoard = async (req, res) => {
         await board.save();
 
         // Devolvemos el tablero con la información completa de los documentos
-        const populatedBoard = await Board.findById(board._id).populate("assignedDocuments");
+        const populatedBoard = await Board.findById(board._id).populate(
+            "assignedDocuments",
+        );
 
         return res.status(200).json({
             message: "Documentos asignados correctamente",
-            assignedDocuments: populatedBoard.assignedDocuments
+            assignedDocuments: populatedBoard.assignedDocuments,
         });
     } catch (error) {
         return res.status(500).json({

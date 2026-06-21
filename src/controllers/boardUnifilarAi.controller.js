@@ -44,7 +44,6 @@ const getImageKindFromFileName = (filename) => {
         return "termografia";
     }
 
-    // Corrección: Asegurar explícitamente el tipo 'tablero' para imágenes normales/principales
     if (name.includes("normal") || name.includes("tablero")) {
         return "normal";
     }
@@ -94,10 +93,8 @@ const boardUnifilarSchema = {
         "incluyeNeutro",
         "sistema",
         "circuits",
-
         "mainBreakerAmperage",
         "mainBreakerSigla",
-
         "warnings",
     ],
     properties: {
@@ -124,130 +121,13 @@ const boardUnifilarSchema = {
                 },
             },
         },
-
-        mainBreakerAmperage: { type: ["number", "null"] }, // <-- NUEVO
-        mainBreakerSigla: { type: ["string", "null"] }, // <-- NUEVO (Ej: "MCCB", "ACB")
-
+        mainBreakerAmperage: { type: ["number", "null"] },
+        mainBreakerSigla: { type: ["string", "null"] },
         warnings: {
             type: "array",
             items: { type: "string" },
         },
     },
-};
-
-const itmSchema = {
-    type: "object",
-    additionalProperties: false,
-
-    required: [
-        "manufacturer",
-        "model",
-        "amperage",
-        "voltage",
-        "breakingCapacityKA",
-        "breakerType",
-        "warnings",
-    ],
-
-    properties: {
-        manufacturer: {
-            type: ["string", "null"],
-        },
-
-        model: {
-            type: ["string", "null"],
-        },
-
-        amperage: {
-            type: ["number", "null"],
-        },
-
-        voltage: {
-            type: ["number", "null"],
-        },
-
-        breakingCapacityKA: {
-            type: ["number", "null"],
-        },
-
-        breakerType: {
-            type: ["string", "null"],
-        },
-
-        warnings: {
-            type: "array",
-            items: {
-                type: "string",
-            },
-        },
-    },
-};
-
-const analyzeITMWithOpenAI = async ({ images }) => {
-    const content = [
-        {
-            type: "input_text",
-            text: `
-Analiza fotografías de un interruptor principal industrial.
-
-Extrae:
-
-- fabricante
-- modelo
-- amperaje
-- voltaje
-- capacidad interruptiva kA
-- tipo de interruptor
-
-REGLAS:
-
-MCCB = Caja Moldeada
-MCB = Miniatura
-ACB = Aire
-
-No inventes datos.
-
-Si no se ve:
-null
-
-Devuelve únicamente JSON.
-`,
-        },
-    ];
-
-    for (const img of images) {
-        const imageDataUrl = bufferToDataUrl(img.buffer, img.mimetype);
-
-        content.push({
-            type: "input_image",
-            image_url: imageDataUrl,
-            detail: "high",
-        });
-    }
-
-    const response = await openai.responses.create({
-        model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
-
-        input: [
-            {
-                role: "user",
-                content,
-            },
-        ],
-
-        text: {
-            format: {
-                type: "json_schema",
-                name: "itm_extraction",
-                strict: true,
-                schema: itmSchema,
-            },
-        },
-
-        max_output_tokens: 1500,
-    });
-
-    return JSON.parse(response.output_text);
 };
 
 const analyzeUnifilarWithOpenAI = async ({ buffer, mimetype, boardCode }) => {
@@ -266,7 +146,6 @@ Tu tarea es analizar diagramas unifilares eléctricos y devolver ÚNICAMENTE JSO
 Tu objetivo es llenar automáticamente un registro de tablero eléctrico.
 
 REGLAS CRÍTICAS:
-
 - NO inventes información.
 - Si un dato no aparece claramente usa null.
 - NO generes texto fuera del JSON.
@@ -281,320 +160,50 @@ REGLAS CRÍTICAS:
 - Ignora sellos, firmas y notas administrativas.
 
 REGLAS DE INTERPRETACIÓN:
-
 1. boardCode
 - El código del tablero viene PRIORITARIAMENTE del nombre del archivo.
 - Si el diagrama muestra otro código visible más preciso, úsalo como "name" pero NO reemplaces boardCode.
 
 2. name
 - Corresponde al nombre visible principal del tablero.
-- Ejemplo:
-  "TABLERO TG-SE"
-  "TG-SE"
-  "TABLERO GENERAL"
+- Ejemplo: "TABLERO TG-SE", "TG-SE", "TABLERO GENERAL"
 
 3. type
-Determina el tipo del tablero usando:
-- nombre,
-- descripción,
-- cargas conectadas,
-- etiquetas visibles.
-
-Ejemplos válidos:
-- "TABLERO GENERAL"
-- "TABLERO DISTRIBUCION"
-- "TABLERO ESTABILIZADO"
-- "TABLERO FUERZA"
-- "TABLERO ALUMBRADO"
-- "TABLERO CONTROL"
-- "TABLERO CUSTOMER CENTER"
-
-Si no es claro:
-"type": "NO_IDENTIFICADO"
+Determina el tipo del tablero usando: nombre, descripción, cargas conectadas, etiquetas visibles.
+Ejemplos válidos: "TABLERO GENERAL", "TABLERO DISTRIBUCION", "TABLERO ESTABILIZADO", "TABLERO FUERZA", "TABLERO ALUMBRADO", "TABLERO CONTROL".
+Si no es claro: "NO_IDENTIFICADO"
 
 4. tensionNominal
-
 Extrae la tensión nominal principal visible del tablero.
-
-Ejemplos:
-- 220V => 220
-- 380V => 380
-- 400V => 400
-- 440V => 440
-- 480V => 480
-- 3x380/220V => 380
-
-Si existen varias tensiones:
-prioriza la tensión principal del tablero.
-
-Si no puede determinarse:
-null
-
+Ejemplos: 220V => 220, 380V => 380. Si existen varias tensiones, prioriza la tensión principal del tablero. Si no puede determinarse: null
 
 4.1 mainBreakerAmperage / mainBreakerSigla
 Busca el interruptor general (IG) o el interruptor principal que está en la cabecera del diagrama.
-- Extrae en "mainBreakerAmperage" solo el número del amperaje nominal (ej. si dice 3x250A o IN=250A, devuelve 250).
-- Extrae en "mainBreakerSigla" el tipo de tecnología si viene escrita (ej. "MCCB", "ACB", "MCB"). Si no viene ninguna sigla pero dice "Caja Moldeada" o "Riel DIN", coloca la sigla equivalente. Si no hay datos, usa null.
-
-
+- Extrae en "mainBreakerAmperage" solo el número del amperaje nominal.
+- Extrae en "mainBreakerSigla" el tipo de tecnología si viene escrita (ej. "MCCB", "ACB", "MCB"). Si no hay datos, usa null.
 
 5. numeroFases / sistema / neutro
-
 Debes determinar correctamente si el tablero es MONOFASICO o TRIFASICO.
-
-=========================
-TABLERO MONOFÁSICO
-=========================
-
-El tablero es MONOFASICO si aparece cualquiera de estas señales:
-
-- "1Ø"
-- "1F"
-- "1 fase"
-- "1x"
-- "F+N"
-- "L+N"
-- "fase y neutro"
-- "2 hilos"
-- breaker 1P
-- una sola línea de fase
-- tensión 220V sin presencia de tres fases
-
-En ese caso devuelve:
-
-numeroFases: 1
-sistema: "MONOFASICO"
-
-=========================
-TABLERO TRIFÁSICO
-=========================
-
-El tablero es TRIFASICO si aparece cualquiera de estas señales:
-
-- "3Ø"
-- "3F"
-- "3 fases"
-- "3x"
-- "R S T"
-- "L1 L2 L3"
-- "R S T N"
-- breaker 3P
-- tres líneas de fase
-- tensión 380V
-- tensión 400V
-- tensión 440V
-- tensión 480V
-
-En ese caso devuelve:
-
-numeroFases: 3
-sistema: "TRIFASICO"
-
-=========================
-REGLA IMPORTANTE SOBRE 220V
-=========================
-
-220V NO significa automáticamente TRIFASICO.
-
-- Si solo aparece una fase + neutro => MONOFASICO
-- Si aparecen tres fases => TRIFASICO
-
-=========================
-incluyeNeutro
-=========================
-
-Debe ser TRUE si aparece:
-
-- N
-- +N
-- (N)
-- F+N
-- L+N
-- neutro
-
-Caso contrario FALSE.
-
-=========================
-REGLAS IMPORTANTES
-=========================
-
-- No asumir TRIFASICO por defecto.
-- Si el tablero parece residencial o pequeño y usa F+N, probablemente es MONOFASICO.
-- Si existen dudas, usa warnings.
-- Prioriza siempre el diagrama eléctrico por encima del texto descriptivo.
+TABLERO MONOFÁSICO: "1Ø", "1F", "1 fase", "F+N", "L+N", breaker 1P. numeroFases: 1, sistema: "MONOFASICO".
+TABLERO TRIFÁSICO: "3Ø", "3F", "3 fases", "R S T", breaker 3P, tensión 380V, 440V, 480V. numeroFases: 3, sistema: "TRIFASICO".
+REGLA IMPORTANTE SOBRE 220V: 220V NO significa automáticamente TRIFASICO. Si solo aparece una fase + neutro => MONOFASICO.
+incluyeNeutro: TRUE si aparece N, +N, (N), F+N, L+N, neutro. Caso contrario FALSE.
 
 6. location
-Extrae ubicación física o sector.
-
-Ejemplos:
-- "SECTOR E"
-- "SALA ELECTRICA"
-- "CUARTO TECNICO"
-- "PISO 2"
-
-Si no existe:
-null
+Extrae ubicación física o sector (ej: "SALA ELECTRICA"). Si no existe: null.
 
 7. description
 Genera una descripción técnica breve usando SOLO información visible.
 
-Ejemplo:
-"Tablero general trifásico 380V del sector E."
-
 8. circuits
-
-Extrae TODOS los circuitos visibles del tablero.
-
-IMPORTANTE:
-Debes identificar:
-- IG (interruptor general)
-- C1
-- C2
-- C3
-- C4
-- etc.
-
-TODOS deben incluirse en el array circuits.
-
-La extracción debe seguir el flujo eléctrico visual del diagrama:
-interruptor principal -> barras -> derivaciones.
-
-Cada circuito debe contener:
-
-- circuito
-- descripcion
-- tipo
-
-REGLAS:
-
-1. circuito
-Corresponde al identificador visible:
-- IG
-- C1
-- C2
-- C3
-- etc.
-
-2. descripcion
-Corresponde EXACTAMENTE al nombre de la carga o tablero alimentado por ese circuito.
-
-REGLA CRÍTICA DE INTERCONEXIÓN:
-- Presta extrema atención si el circuito indica una procedencia de alimentación ("ALIMENTACIÓN DESDE:", "VIENE DE:") o un destino ("A TABLERO:").
-- Transcribe esa relación de forma EXACTA. Si el plano dice "ALIMENTACIÓN DESDE: T-01" o "ALIMENTACIÓN DESDE TABLERO T001", ponlo exactamente así en la descripción del circuito para mantener la trazabilidad.
-
-Ejemplos:
-- TABLERO ESTABILIZADO CUSTOMER CENTER (TS-CC)
-- C2 - ALIMENTA A TABLERO T0002
-- IG - VIENE DE TABLERO PRINCIPAL T0001 || VIENE TABLERO PRINCIPAL T0001
-- RESERVA
-
-NO dejar vacío descripcion si existe texto asociado al circuito.
-
-3. tipo
-
-Determina el tipo del circuito.
-
-=========================
-CIRCUITO MONOFÁSICO
-=========================
-
-El circuito es MONOFASICO si:
-- aparece 1P
-- aparece F+N
-- aparece L+N
-- aparece 1Ø
-- aparece 1x
-- existe una sola fase
-- carga pequeña residencial
-- iluminación o tomacorrientes simples
-
-=========================
-CIRCUITO TRIFÁSICO
-=========================
-
-El circuito es TRIFASICO si:
-- aparece 3P
-- aparece 3x
-- R,S,T
-- L1,L2,L3
-- tres fases
-- motores
-- tableros derivados trifásicos
-
-=========================
-REGLA IMPORTANTE
-=========================
-
-No asumir TRIFASICO por defecto.
-
-Si no puede determinarse claramente:
-tipo = null
-
-4. INTERRUPTOR GENERAL (IG)
-
-Si existe un breaker principal antes de las derivaciones:
-- debe registrarse como circuito "IG"
-
-Para el circuito IG:
-- circuito: "IG"
-- descripcion: "Interruptor General"
-- tipo: según el sistema del tablero
-
-REGLA OBLIGATORIA:
-La descripcion de IG NUNCA debe contener:
-- nombre del tablero
-- alimentador de entrada
-- textos de cables
-- barras
-- neutro
-- tierra
-- lista de circuitos derivados
-- cargas como C1, C2, C3, etc.
-
-Ejemplo correcto:
-{
-  "circuito": "IG",
-  "descripcion": "Interruptor General",
-  "tipo": "TRIFASICO"
-}
-
-5. ORDEN
-
-Los circuitos deben devolverse EXACTAMENTE en el orden visual:
-IG -> C1 -> C2 -> C3 ...
-
-6. CIRCUITOS RESERVA
-
-"RESERVA" también cuenta como circuito válido y debe incluirse.
-
-7. NO OMITIR CIRCUITOS
-
-Aunque un circuito:
-- no tenga breaker visible,
-- tenga texto parcial,
-- tenga baja resolución,
-- o esté incompleto,
-
-igual debe incluirse si es identificable.
+Extrae TODOS los circuitos visibles del tablero (IG, C1, C2, etc.).
+Cada circuito debe contener: circuito, descripcion, tipo.
+REGLA CRÍTICA DE INTERCONEXIÓN: Presta extrema atención si el circuito indica una procedencia o destino ("ALIMENTACIÓN DESDE: T-01", "A TABLERO:"). Transcribe esa relación de forma EXACTA.
+INTERRUPTOR GENERAL (IG): Si existe un breaker principal antes de las derivaciones, debe registrarse como circuito "IG", descripcion: "Interruptor General", tipo: según el sistema del tablero. La descripción de IG NUNCA debe contener nombres de otros tableros derivados ni sub-cargas.
+ORDEN: Los circuitos deben devolverse EXACTAMENTE en el orden visual. "RESERVA" también cuenta como circuito válido. NO OMITIR CIRCUITOS aunque estén incompletos.
 
 9. warnings
-Agrega advertencias SOLO si:
-- texto ilegible,
-- información ambigua,
-- circuito parcialmente visible,
-- tensión dudosa,
-- datos contradictorios.
-
-Si todo es claro:
-[]
-
-IMPORTANTE:
-- Extrae TODOS los circuitos aunque algunos estén como RESERVA.
-- "RESERVA" también es un circuito válido.
-- Mantén nombres exactamente como aparecen.
-- No traduzcas texto.
-- No normalices etiquetas.
-`,
+Agrega advertencias SOLO si hay texto ilegible o datos contradictorios. Si todo es claro: []`,
             },
             {
                 role: "user",
@@ -603,24 +212,9 @@ IMPORTANTE:
                         type: "input_text",
                         text: `
 Analiza este diagrama unifilar industrial.
-
-El código interno del tablero obtenido desde el archivo es:
-${boardCode}
-
+El código interno del tablero obtenido desde el archivo es: ${boardCode}
 Debes extraer toda la información eléctrica visible del tablero principal y sus circuitos derivados.
-
-Prioriza:
-1. Nombre del tablero
-2. Tensión
-3. Sistema eléctrico
-4. Número de fases
-5. Neutro
-6. Circuitos
-7. Descripción técnica
-8. Ubicación o sector
-
-Devuelve únicamente JSON válido.
-`,
+Devuelve únicamente JSON válido.`,
                     },
                     {
                         type: "input_image",
@@ -674,125 +268,6 @@ const normalizeCircuits = (circuits = [], sistema = null) => {
     return cleanCircuits;
 };
 
-const generateNfpaData = (unifilarData, itmData = null) => {
-    // 🚨 REGLA ESTRICTA: Si no hay foto del ITM, NO se calcula etiqueta para este tablero
-    if (!itmData) {
-        return null;
-    }
-
-    const voltage = itmData.voltage || 380;
-    const amperaje = itmData.amperage || 150;
-
-    // 1. Resolver tipo de interruptor únicamente con la foto del ITM
-    let tipoInterruptor = "Caja Moldeada";
-    const siglaDetectada = (itmData.breakerType || "").toUpperCase();
-
-    if (
-        siglaDetectada.includes("MCCB") ||
-        siglaDetectada.includes("MOLDEADA") ||
-        siglaDetectada.includes("CAJA MOLDEADA")
-    ) {
-        tipoInterruptor = "Caja Moldeada";
-    } else if (
-        siglaDetectada.includes("ACB") ||
-        siglaDetectada.includes("AIRE") ||
-        siglaDetectada.includes("BASTIDOR")
-    ) {
-        tipoInterruptor = "Caja Abierta (Bastidor)";
-    } else if (
-        siglaDetectada.includes("MCB") ||
-        siglaDetectada.includes("MINIATURA") ||
-        siglaDetectada.includes("DIN")
-    ) {
-        tipoInterruptor = "Riel DIN (Miniatura)";
-    } else {
-        if (amperaje <= 125) tipoInterruptor = "Riel DIN (Miniatura)";
-        else if (amperaje > 1000) tipoInterruptor = "Caja Abierta (Bastidor)";
-    }
-
-    // 2. Resolver Cortocircuito (kA) real de la foto
-    let shortCircuitCurrent = itmData.breakingCapacityKA || null;
-    if (!shortCircuitCurrent) {
-        if (amperaje <= 125) shortCircuitCurrent = 10;
-        else if (amperaje > 125 && amperaje <= 400) shortCircuitCurrent = 22;
-        else if (amperaje > 400 && amperaje <= 1000) shortCircuitCurrent = 35;
-        else if (amperaje > 1000) shortCircuitCurrent = 50;
-    }
-
-    // 3. Determinar los datos de arco basados en el amperaje del ITM físico
-    let arcData = {
-        riskCategory: 1,
-        incidentEnergy: "3.13 cal/cm²",
-        arcDistance: "0.74 m",
-        eppRequerido: [
-            "Casco de Seguridad de Polímero Tipo E con Careta Facial AR (Mín. 4 cal/cm²)",
-            "Lentes de Seguridad de Policarbonato con protección UV",
-            "Camisa de manga larga y pantalón de trabajo AR (Mínimo 4 cal/cm² a 8 cal/cm²)",
-            "Guantes de Cuero para Trabajo Mecánico o Dieléctricos según corresponda",
-            "Zapatos Dieléctricos de Seguridad con puntera de composite",
-        ],
-    };
-
-    if (amperaje > 125 && amperaje <= 400) {
-        arcData = {
-            riskCategory: 2,
-            incidentEnergy: "7.8 cal/cm²",
-            arcDistance: "0.91 m",
-            eppRequerido: [
-                "Casco integrado con Careta Facial AR Libre con Mentonera (Mín. 8 cal/cm²)",
-                "Lentes de Seguridad de Policarbonato con protectores laterales",
-                "Camisa de Trabajo AR y Pantalón de Trabajo Industrial AR (Resistentes a 8 cal/cm²)",
-                "Guantes de Cuero para Trabajo Mecánico",
-                "Zapatos Dieléctricos de Seguridad",
-            ],
-        };
-    } else if (amperaje > 400) {
-        arcData = {
-            riskCategory: 4,
-            incidentEnergy: "32.0 cal/cm²",
-            arcDistance: "1.52 m",
-            eppRequerido: [
-                "Capucha de Traje de Arco (Escafandra) certificada de 25 a 40 cal/cm²",
-                "Lentes de Seguridad de Policarbonato (obligatorios bajo la escafandra)",
-                "Traje de Arco de Alta Densidad (Chaqueta y Pantalón Peto ignífugo multicapa)",
-                "Guantes Dieléctricos de Goma con Protectores de Cuero (Sobreguantes)",
-                "Botas Dieléctricas de Caña Alta (Hule/Goma)",
-            ],
-        };
-    }
-
-    // 4. Determinar los límites de choque según el Voltaje del ITM
-    let limiteAproximacion = "1.07 m";
-    let distanciaRestringida = "0.31 m";
-    let shockGloveClass = "Clase 00 (Hasta 500 VCA) con guantes de piel";
-
-    if (voltage > 250 && voltage <= 600) {
-        limiteAproximacion = "1.07 m";
-        distanciaRestringida = "0.31 m";
-        shockGloveClass = "Clase 0 (Hasta 1,000 VCA) con guantes de piel";
-    } else if (voltage > 600) {
-        limiteAproximacion = "1.52 m";
-        distanciaRestringida = "0.61 m";
-        shockGloveClass = "Clase 1 (Hasta 7,500 VCA) con guantes de piel";
-    }
-
-    return {
-        amperajePrincipal: amperaje,
-        tipoInterruptor,
-        corrienteCortocircuito: shortCircuitCurrent,
-        distanciaTrabajo: "45.72 cm (18 in)",
-        distanciaArco: arcData.arcDistance,
-        energiaIncidente: arcData.incidentEnergy,
-        categoriaRiesgo: arcData.riskCategory,
-        limiteAproximacion,
-        distanciaRestringida,
-        guantesClase: shockGloveClass,
-        eppRequerido: arcData.eppRequerido,
-        calculadoPorIA: true,
-        origenDatos: "FOTO_ITM_REAL",
-    };
-};
-
 export const importBoardsFromUnifilarZip = async (req, res) => {
     try {
         const { companyCode } = req.body;
@@ -825,9 +300,7 @@ export const importBoardsFromUnifilarZip = async (req, res) => {
 
         const imageEntries = entries.filter((entry) => {
             if (entry.isDirectory) return false;
-
             const ext = path.extname(entry.entryName).toLowerCase();
-
             return [".jpg", ".jpeg", ".png", ".webp"].includes(ext);
         });
 
@@ -838,41 +311,29 @@ export const importBoardsFromUnifilarZip = async (req, res) => {
             });
         }
 
-        // =========================================================================
-        // 🚨 CONTROL DE PESO MÁXIMO POR IMAGEN (MÁX. 10MB POR ARCHIVO)
-        // =========================================================================
-        const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10 Megabytes en bytes
+        // CONTROL DE PESO MÁXIMO POR IMAGEN (MÁX. 10MB POR ARCHIVO)
+        const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
         const archivosPesados = [];
 
         for (const entry of imageEntries) {
-            // entry.header.uncompressedSize nos da el peso real de la imagen antes de subirla
             if (entry.header.uncompressedSize > MAX_IMAGE_SIZE) {
-                const pesoMB = (
-                    entry.header.uncompressedSize /
-                    (1024 * 1024)
-                ).toFixed(2);
-                archivosPesados.push(
-                    `${path.basename(entry.entryName)} (${pesoMB} MB)`,
-                );
+                const pesoMB = (entry.header.uncompressedSize / (1024 * 1024)).toFixed(2);
+                archivosPesados.push(`${path.basename(entry.entryName)} (${pesoMB} MB)`);
             }
         }
 
-        // Si se detecta aunque sea una imagen que supere los 10MB, detenemos todo el lote
         if (archivosPesados.length > 0) {
             return res.status(400).json({
                 ok: false,
-                error: `Importación cancelada. Se detectaron imágenes individuales que superan el límite de 10MB permitido por Cloudinary e IA: ${archivosPesados.join(", ")}. Por favor, reduce su resolución o comprímelas antes de volver a armar el archivo ZIP.`,
+                error: `Importación cancelada. Se detectaron imágenes individuales que superan el límite de 10MB: ${archivosPesados.join(", ")}.`,
             });
         }
-        // =========================================================================
 
         const groupedImages = {};
 
         for (const entry of imageEntries) {
             const originalName = path.basename(entry.entryName);
-
             const boardCode = getBoardCodeFromGroupedImage(originalName);
-
             const kind = getImageKindFromFileName(originalName);
 
             if (!groupedImages[boardCode]) {
@@ -893,11 +354,10 @@ export const importBoardsFromUnifilarZip = async (req, res) => {
                 kind,
             };
 
-            // ... (Reemplaza el cierre del bucle for (const entry of imageEntries) por esto)
             if (kind === "unifilar") {
                 groupedImages[boardCode].unifilar = imageData;
             } else if (kind === "itm") {
-                groupedImages[boardCode].itm.push(imageData); // <-- CAMBIADO: Ahora sí agrupa las fotos del interruptor físico
+                groupedImages[boardCode].itm.push(imageData);
             } else if (kind === "termografia") {
                 groupedImages[boardCode].termografia.push(imageData);
             } else {
@@ -917,7 +377,6 @@ export const importBoardsFromUnifilarZip = async (req, res) => {
                         status: "failed",
                         error: "No se encontró imagen unifilar para este tablero.",
                     });
-
                     continue;
                 }
 
@@ -932,44 +391,22 @@ export const importBoardsFromUnifilarZip = async (req, res) => {
                         status: "skipped",
                         error: "Ya existe un tablero con ese código.",
                     });
-
                     continue;
                 }
 
+                // Analizar exclusivamente el Diagrama Unifilar mediante OpenAI
                 const aiResult = await analyzeUnifilarWithOpenAI({
                     buffer: group.unifilar.buffer,
                     mimetype: group.unifilar.mimetype,
                     boardCode,
                 });
 
-                // 1. Ejecutar análisis opcional de la foto del interruptor físico si se subió al ZIP
-                let itmResult = null;
-                if (group.itm && group.itm.length > 0) {
-                    try {
-                        itmResult = await analyzeITMWithOpenAI({
-                            images: group.itm,
-                            boardCode,
-                        });
-                    } catch (itmError) {
-                        console.error(
-                            `Error analizando ITM para ${boardCode}, continuando solo con unifilar...`,
-                            itmError,
-                        );
-                    }
-                }
-
-                // 2. Generar el payload NFPA 70E automáticamente combinando los dos caminos
-                const nfpaCalculatedData = generateNfpaData(
-                    aiResult,
-                    itmResult,
-                );
-
-                // 3. Subida de imágenes a Cloudinary (Agrupamos también el itm en la subida si procede)
+                // Subida de imágenes de contexto encontradas en el ZIP a Cloudinary
                 const images = {
                     tablero: [],
                     unifilar: [],
                     termografia: [],
-                    itm: [], // Añade itm si tu schema final de imágenes lo soporta
+                    itm: [],
                 };
 
                 const allImages = [
@@ -990,11 +427,11 @@ export const importBoardsFromUnifilarZip = async (req, res) => {
                     if (images[img.kind]) {
                         images[img.kind].push(url);
                     } else {
-                        images.tablero.push(url); // Fallback por si acaso
+                        images.tablero.push(url);
                     }
                 }
 
-                // 4. Crear el registro en MongoDB con la data NFPA 70E integrada
+                // Crear el registro base en MongoDB sin el payload de NFPA calculada
                 const board = await Board.create({
                     code: uuidv4(),
                     boardCode,
@@ -1013,17 +450,11 @@ export const importBoardsFromUnifilarZip = async (req, res) => {
                     ),
                     images,
                     estadoGeneral: "OPERATIVO",
-                    createdBy:
-                        req.user?._id || "ID_REAL_DE_USUARIO_PARA_PRUEBAS",
-
-                    nfpa: nfpaCalculatedData, // <-- ENTRADA DE LA DATA GENERADA AUTOMÁTICAMENTE
+                    createdBy: req.user?._id || "ID_REAL_DE_USUARIO_PARA_PRUEBAS",
+                    nfpa: null, // <-- Inicializado en null. El nuevo endpoint se encargará de rellenar esto.
                 });
 
-                console.log(
-                    `✅ Tablero ${boardCode} registrado con éxito en la BD. ID: ${board._id}`,
-                );
-
-                // ... (El resto de tu código de inserción "results.push" se queda igual hacia abajo)
+                console.log(`✅ Tablero ${boardCode} registrado con éxito en la BD.`);
 
                 results.push({
                     boardCode,
@@ -1032,10 +463,7 @@ export const importBoardsFromUnifilarZip = async (req, res) => {
                     warnings: aiResult.warnings || [],
                 });
             } catch (error) {
-                console.error(
-                    `❌ Error procesando el tablero [${boardCode}]:`,
-                    error,
-                );
+                console.error(`❌ Error procesando el tablero [${boardCode}]:`, error);
 
                 results.push({
                     boardCode,
