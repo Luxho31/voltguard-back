@@ -31,7 +31,7 @@ const userSchema = new mongoose.Schema(
         },
         plan: {
             type: String,
-            enum: ["free", "basic", 'pro'],
+            enum: ["free", "basic", "pro"],
             default: "free",
         },
         verified: {
@@ -48,6 +48,9 @@ const userSchema = new mongoose.Schema(
             type: Date,
             default: null,
         },
+
+        resetPasswordToken: { type: String, default: null },
+        resetPasswordExpires: { type: Date, default: null },
     },
     {
         timestamps: true,

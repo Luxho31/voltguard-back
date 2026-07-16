@@ -2,10 +2,15 @@ import User from "../models/User.js";
 import { generateToken } from "../utils/generateToken.js";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import {
+    sendResetPasswordEmail,
+    sendVerificationEmail,
+} from "../services/email.service.js";
 
 export const register = async (req, res) => {
     try {
-        const { firstname, lastname, email, password, companyPublicCode } = req.body;
+        const { firstname, lastname, email, password, companyPublicCode } =
+            req.body;
 
         // Validar si el usuario ya existe
         const exists = await User.findOne({ email });
@@ -18,7 +23,7 @@ export const register = async (req, res) => {
         // Generar un token único y seguro usando crypto
         const token = crypto.randomBytes(32).toString("hex");
         // Definir tiempo de expiración (1 hora a partir de este momento)
-        const tokenExpires = new Date(Date.now() + 3600000); 
+        const tokenExpires = new Date(Date.now() + 3600000);
 
         // Crear el usuario con rol 'USER' y verificado en FALSE
         const user = await User.create({
@@ -37,19 +42,22 @@ export const register = async (req, res) => {
         await sendVerificationEmail(user.email, token);
 
         res.status(201).json({
-            message: "Usuario registrado con éxito. Por favor, verifica tu correo electrónico.",
+            message:
+                "Usuario registrado con éxito. Por favor, verifica tu correo electrónico.",
             user: {
                 id: user._id,
                 firstname: user.firstname,
                 lastname: user.lastname,
                 email: user.email,
                 role: user.role,
-                verified: user.verified
+                verified: user.verified,
             },
         });
     } catch (error) {
         console.error("Error en el registro:", error);
-        res.status(500).json({ message: "Error interno del servidor al registrar usuario." });
+        res.status(500).json({
+            message: "Error interno del servidor al registrar usuario.",
+        });
     }
 };
 
@@ -65,8 +73,8 @@ export const verifyEmail = async (req, res) => {
         });
 
         if (!user) {
-            return res.status(400).json({ 
-                message: "El enlace de verificación es inválido o ha expirado." 
+            return res.status(400).json({
+                message: "El enlace de verificación es inválido o ha expirado.",
             });
         }
 
@@ -76,10 +84,14 @@ export const verifyEmail = async (req, res) => {
         user.verificationTokenExpires = null;
         await user.save();
 
-        res.status(200).json({ message: "Cuenta verificada con éxito. Ya puedes iniciar sesión." });
+        res.status(200).json({
+            message: "Cuenta verificada con éxito. Ya puedes iniciar sesión.",
+        });
     } catch (error) {
         console.error("Error al verificar cuenta:", error);
-        res.status(500).json({ message: "Error al procesar la verificación de la cuenta." });
+        res.status(500).json({
+            message: "Error al procesar la verificación de la cuenta.",
+        });
     }
 };
 
@@ -100,8 +112,9 @@ export const login = async (req, res) => {
 
         // RESTRICCIÓN DE VERIFICACIÓN CRÍTICA
         if (!user.verified) {
-            return res.status(403).json({ 
-                message: "No puedes ingresar. Por favor, verifica primero tu cuenta en tu correo electrónico." 
+            return res.status(403).json({
+                message:
+                    "No puedes ingresar. Por favor, verifica primero tu cuenta en tu correo electrónico.",
             });
         }
 
@@ -109,8 +122,8 @@ export const login = async (req, res) => {
 
         res.cookie("token", token, {
             httpOnly: true,
-            secure: true, 
-            sameSite: "none", 
+            secure: true,
+            sameSite: "none",
             path: "/",
         });
 
@@ -121,7 +134,7 @@ export const login = async (req, res) => {
                 firstname: user.firstname,
                 lastname: user.lastname,
                 role: user.role,
-                companyPublicCode: user.companyPublicCode
+                companyPublicCode: user.companyPublicCode,
             },
         });
     } catch (error) {
@@ -175,28 +188,112 @@ export const getProfile = (req, res) => {
     }
 };
 
-// auth.controller.js
+// EMAILS
 
-import { sendVerificationEmail }
-from "../services/email.service.js";
+// COOLDOWN CONFIGURABLE (en segundos)
+const REEND_COOLDOWN_SECONDS = 60;
+
+// Solicitar token de restablecimiento
+export const forgotPassword = async (req, res) => {
+    try {
+        const { email } = req.body; // Se recibe desde el body
+
+        if (!email) {
+            return res
+                .status(400)
+                .json({ message: "El correo electrónico es requerido." });
+        }
+
+        const user = await User.findOne({ email });
+
+        // Por seguridad, si el usuario no existe respondes OK con el cooldown
+        if (!user) {
+            return res.status(200).json({
+                message: "Si el correo está registrado, recibirás un enlace.",
+                cooldownSeconds: REEND_COOLDOWN_SECONDS,
+            });
+        }
+
+        // Generar Token
+        const token = crypto.randomBytes(32).toString("hex");
+        const tokenExpires = new Date(Date.now() + 3600000); // 1 hora de validez
+
+        user.resetPasswordToken = token;
+        user.resetPasswordExpires = tokenExpires;
+        await user.save();
+
+        // Enviar Email con la URL para React
+        await sendResetPasswordEmail(user.email, token);
+
+        return res.status(200).json({
+            message: "Instrucciones enviadas con éxito.",
+            cooldownSeconds: REEND_COOLDOWN_SECONDS, // El front requiere este campo exacto
+        });
+    } catch (error) {
+        console.error("Error en forgotPassword:", error);
+        return res
+            .status(500)
+            .json({ message: "Error al procesar la solicitud." });
+    }
+};
+
+// Restablecer la contraseña con el token
+export const resetPassword = async (req, res) => {
+    try {
+        // Tu frontend envía { token, newPassword } en el body
+        const { token, newPassword } = req.body;
+
+        if (!token || !newPassword) {
+            return res
+                .status(400)
+                .json({
+                    message:
+                        "Datos incompletos para restablecer la contraseña.",
+                });
+        }
+
+        // Buscar usuario por token y que el tiempo no haya expirado
+        const user = await User.findOne({
+            resetPasswordToken: token,
+            resetPasswordExpires: { $gt: new Date() },
+        });
+
+        if (!user) {
+            return res.status(400).json({
+                message:
+                    "El enlace de restablecimiento es inválido o ha expirado.",
+            });
+        }
+
+        // Hashear y guardar nueva clave
+        user.password = await bcrypt.hash(newPassword, 10);
+        user.resetPasswordToken = null;
+        user.resetPasswordExpires = null;
+        await user.save();
+
+        return res
+            .status(200)
+            .json({ message: "Contraseña restablecida exitosamente." });
+    } catch (error) {
+        console.error("Error en resetPassword:", error);
+        return res
+            .status(500)
+            .json({ message: "Error al cambiar la contraseña." });
+    }
+};
 
 export const testEmail = async (req, res) => {
     try {
-
-        await sendVerificationEmail(
-            "serinlu2201@gmail.com",
-            "TOKEN_PRUEBA"
-        );
+        await sendVerificationEmail("serinlu2201@gmail.com", "TOKEN_PRUEBA");
 
         res.json({
-            message: "Correo enviado"
+            message: "Correo enviado",
         });
-
     } catch (error) {
         console.error(error);
 
         res.status(500).json({
-            message: error.message
+            message: error.message,
         });
     }
 };
