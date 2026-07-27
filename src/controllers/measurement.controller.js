@@ -2,7 +2,20 @@
 import Measurement from '../models/Measurement.js';
 import mongoose from "mongoose"
 
-// A. IMPORTACIÓN COMPLETA (Guarda absolutamente todo lo que venga en el archivo)
+// Función auxiliar para normalizar y parsear los floats con formatos regionales del Metrel
+const parseMetrelFloat = (textoRaw) => {
+  if (!textoRaw) return 0;
+  let limpio = textoRaw.replace(/[^\d.,-]/g, '');
+  if (limpio.includes(',') && limpio.includes('.')) {
+    limpio = limpio.replace(/,/g, ''); // Remover separador de miles
+  } else if (limpio.includes(',') && !limpio.includes('.')) {
+    limpio = limpio.replace(/,/g, '.'); // Cambiar coma decimal a punto
+  }
+  const valor = parseFloat(limpio);
+  return isNaN(valor) ? 0 : valor;
+};
+
+// A. IMPORTACIÓN COMPLETA REESTRUCTURADA
 export const importMetrel = async (req, res) => {
   try {
     const { boardId } = req.params;
@@ -20,19 +33,15 @@ export const importMetrel = async (req, res) => {
       const columnas = linea.replace(/"/g, '').split(';');
       if (columnas[0].includes('Hora') || columnas[0].includes('Med')) continue;
 
-      if (columnas.length >= 2) {
+      // Garantizamos que existan las columnas de Potencia Activa y Reactivas
+      if (columnas.length >= 4) {
         const rawTime = columnas[0].trim();
-        let WhTextoLimpio = columnas[1].replace(/[^\d.,-]/g, ''); 
         
-        if (WhTextoLimpio.includes(',') && WhTextoLimpio.includes('.')) {
-          WhTextoLimpio = WhTextoLimpio.replace(/,/g, '');
-        } else if (WhTextoLimpio.includes(',') && !WhTextoLimpio.includes('.')) {
-          WhTextoLimpio = WhTextoLimpio.replace(/,/g, '.');
-        }
+        const rawWh = parseMetrelFloat(columnas[1]);   // Eptot+ (Wh)
+        const rawVarCap = parseMetrelFloat(columnas[2]); // Ntotcap+ (var)
+        const rawVarInd = parseMetrelFloat(columnas[3]); // Ntotind+ (var)
 
-        const rawWh = parseFloat(WhTextoLimpio);
-
-        if (rawTime && !isNaN(rawWh)) {
+        if (rawTime) {
           const [fechaParte, horaParte] = rawTime.split(' ');
           const [diaStr, mesStr, añoStr] = fechaParte.split('/');
           const [horaStr, minutoStr] = horaParte.split(':');
@@ -55,7 +64,10 @@ export const importMetrel = async (req, res) => {
           const timestampNeutro = new Date(`${fecha}T${hora}:${minuto}:00.000Z`);
           const diaSemana = diasInEsp[timestampNeutro.getUTCDay()];
 
+          // Conversiones eléctricas correspondientes
           const kw = (rawWh * 12) / 1000;
+          const kvarCap = rawVarCap / 1000;
+          const kvarInd = rawVarInd / 1000;
 
           datosProcesados.push({
             boardId,
@@ -63,14 +75,16 @@ export const importMetrel = async (req, res) => {
             fecha,
             horaMinuto,
             diaSemana,
-            demandaKw: Number((kw).toFixed(2))
+            demandaKw: Number(kw.toFixed(2)),
+            reactivaCapKvar: Number(kvarCap.toFixed(2)),
+            reactivaIndKvar: Number(kvarInd.toFixed(2))
           });
         }
       }
     }
 
     if (datosProcesados.length > 0) {
-      // Limpieza preventiva automática al importar un archivo nuevo
+      // Limpieza e inserción masiva segura
       await Measurement.deleteMany({ boardId });
       await Measurement.bulkWrite(
         datosProcesados.map(doc => ({
@@ -89,13 +103,12 @@ export const importMetrel = async (req, res) => {
   }
 };
 
-// B. CONSULTA FILTRADA DINÁMICAMENTE POR RANGO DE FECHAS
+// B. CONSULTA EXTENDIDA PARA ENVIAR LAS TRES VARIABLES AGROPADAS POR DÍA
 export const chartData = async (req, res) => {
   try {
     const { boardId } = req.params;
     const { fechaInicio, fechaFin } = req.query;
 
-    // 1. Encontrar dinámicamente los límites reales absolutos de la data cargada
     const limites = await Measurement.aggregate([
       { $match: { boardId: new mongoose.Types.ObjectId(boardId) } },
       { $group: { _id: null, min: { $min: "$fecha" }, max: { $max: "$fecha" } } }
@@ -104,26 +117,36 @@ export const chartData = async (req, res) => {
     const minFechaDisponible = limites[0]?.min || "2026-06-20";
     const maxFechaDisponible = limites[0]?.max || "2026-06-30";
 
-    // 2. Construir la consulta de filtrado dinámico
     const query = { boardId };
     if (fechaInicio && fechaFin) {
       query.fecha = { $gte: fechaInicio, $lte: fechaFin };
     } else {
-      // 🔥 SOLUCIÓN: Carga TODOS los días registrados por defecto al abrir la vista
       query.fecha = { $gte: minFechaDisponible, $lte: maxFechaDisponible };
     }
 
     const datos = await Measurement.find(query).sort({ horaMinuto: 1 });
 
-    const agrupado = {};
+    // Estructuras de respuesta separadas para que el front las mapee sin cruzar data
+    const agrupadoActiva = {};
+    const agrupadoReactivaInd = {};
+    const agrupadoReactivaCap = {};
+
     datos.forEach(item => {
       const key = `${item.fecha} (${item.diaSemana})`;
-      if (!agrupado[key]) agrupado[key] = {};
-      agrupado[key][item.horaMinuto] = item.demandaKw;
+      
+      if (!agrupadoActiva[key]) agrupadoActiva[key] = {};
+      if (!agrupadoReactivaInd[key]) agrupadoReactivaInd[key] = {};
+      if (!agrupadoReactivaCap[key]) agrupadoReactivaCap[key] = {};
+
+      agrupadoActiva[key][item.horaMinuto] = item.demandaKw;
+      agrupadoReactivaInd[key][item.horaMinuto] = item.reactivaIndKvar;
+      agrupadoReactivaCap[key][item.horaMinuto] = item.reactivaCapKvar;
     });
 
     return res.json({
-      agrupado,
+      agrupado: agrupadoActiva, 
+      agrupadoReactivaInd,
+      agrupadoReactivaCap,
       minFecha: minFechaDisponible,
       maxFecha: maxFechaDisponible
     });
