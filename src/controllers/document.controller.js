@@ -13,9 +13,11 @@ const uploadFromBuffer = (fileBuffer, companyPublicCode, originalName) => {
         const stream = cloudinary.uploader.upload_stream(
             {
                 folder: `tableros_electricos/documentos/${companyPublicCode}`,
-                resource_type: "raw", 
-                // 👇 ESTAS DOS LÍNEAS HACEN LA MAGIA
-                public_id: `${cleanName}.pdf`, 
+                // 👇 1. CAMBIO CLAVE: Se usa "image" (Cloudinary trata los PDFs como imágenes vectoriales multi-página)
+                resource_type: "image", 
+                // 👇 2. CAMBIO CLAVE: Forzamos el formato PDF para que genere las cabeceras HTTP correctas
+                format: "pdf", 
+                public_id: cleanName, 
                 keep_original_filename: true,
             },
             (error, result) => {
@@ -154,7 +156,7 @@ export const deleteDocument = async (req, res) => {
         }
 
         // Eliminar físicamente de Cloudinary primero
-        await cloudinary.uploader.destroy(document.cloudinaryPublicId, { resource_type: "raw" });
+        await cloudinary.uploader.destroy(document.cloudinaryPublicId, { resource_type: "image" });
 
         // Eliminar de la base de datos
         await Document.findByIdAndDelete(id);
