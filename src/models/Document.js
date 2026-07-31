@@ -9,7 +9,7 @@ const documentSchema = new mongoose.Schema(
         },
         type: {
             type: String,
-            enum: ["MANTENIMIENTO", "OPERATIVIDAD"],
+            enum: ["MANTENIMIENTO", "OPERATIVIDAD", "POZO_A_TIERRA"],
             required: true,
         },
         cloudinaryUrl: {
