@@ -24,7 +24,7 @@ const userSchema = new mongoose.Schema(
         companyPublicCode: {
             type: String,
             required: function () {
-                return this.role === "ADMIN";
+               return this.role === "ADMIN" && this.isModified("role");
             },
             default: null,
             trim: true,
