@@ -104,6 +104,7 @@ export const importMetrel = async (req, res) => {
 };
 
 // B. CONSULTA EXTENDIDA PARA ENVIAR LAS TRES VARIABLES AGROPADAS POR DÍA
+// ── REEMPLAZAR LA FUNCIÓN chartData COMPLETA EN EL CONTROLLER ──
 export const chartData = async (req, res) => {
   try {
     const { boardId } = req.params;
@@ -126,27 +127,23 @@ export const chartData = async (req, res) => {
 
     const datos = await Measurement.find(query).sort({ horaMinuto: 1 });
 
-    // Estructuras de respuesta separadas para que el front las mapee sin cruzar data
-    const agrupadoActiva = {};
-    const agrupadoReactivaInd = {};
-    const agrupadoReactivaCap = {};
+    const agrupado = {};
 
     datos.forEach(item => {
       const key = `${item.fecha} (${item.diaSemana})`;
       
-      if (!agrupadoActiva[key]) agrupadoActiva[key] = {};
-      if (!agrupadoReactivaInd[key]) agrupadoReactivaInd[key] = {};
-      if (!agrupadoReactivaCap[key]) agrupadoReactivaCap[key] = {};
+      if (!agrupado[key]) agrupado[key] = {};
 
-      agrupadoActiva[key][item.horaMinuto] = item.demandaKw;
-      agrupadoReactivaInd[key][item.horaMinuto] = item.reactivaIndKvar;
-      agrupadoReactivaCap[key][item.horaMinuto] = item.reactivaCapKvar;
+      // Enviamos p, ind y cap juntos para cada punto de tiempo
+      agrupado[key][item.horaMinuto] = {
+        p: item.demandaKw,
+        ind: item.reactivaIndKvar,
+        cap: item.reactivaCapKvar
+      };
     });
 
     return res.json({
-      agrupado: agrupadoActiva, 
-      agrupadoReactivaInd,
-      agrupadoReactivaCap,
+      agrupado,
       minFecha: minFechaDisponible,
       maxFecha: maxFechaDisponible
     });
