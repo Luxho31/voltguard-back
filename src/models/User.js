@@ -4,22 +4,22 @@ const userSchema = new mongoose.Schema(
     {
         firstname: { type: String, required: true },
         lastname: { type: String, required: true },
-        email: { type: String, required: true },
+        email: { type: String, required: true, unique: true },
         password: { type: String, required: true },
+        
+        // ── NUEVOS CAMPOS AGREGADOS ──
+        company: { type: String, required: true, trim: true },
+        ruc: { type: String, required: true, trim: true },
+        cargo: { type: String, required: true, trim: true },
+        phone: { type: String, required: true, trim: true },
+        referralSource: { type: String, required: true, trim: true },
+
         isActive: { type: Boolean, default: true },
         role: {
             type: String,
             enum: ["SUPERADMIN", "ADMIN", "USER"],
-            default: "ADMIN",
+            default: "USER",
         },
-        // company: {
-        //     type: mongoose.Schema.Types.ObjectId,
-        //     ref: "Company",
-        //     required: function () {
-        //         return this.role === "ADMIN";
-        //     },
-        //     default: null,
-        // },
 
         companyPublicCode: {
             type: String,

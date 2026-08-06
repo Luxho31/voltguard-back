@@ -6,57 +6,98 @@ import {
     sendResetPasswordEmail,
     sendVerificationEmail,
 } from "../services/email.service.js";
+import axios from "axios";
 
 export const register = async (req, res) => {
     try {
-        const { firstname, lastname, email, password, companyPublicCode } =
-            req.body;
+        const {
+            firstname,
+            lastname,
+            email,
+            password,
+            companyPublicCode,
+            company,
+            ruc,
+            cargo,
+            phone,
+            referralSource,
+            captchaToken,
+        } = req.body;
 
-        // Validar si el usuario ya existe
+        // 1. Validar campos obligatorios
+        if (!firstname || !lastname || !email || !password || !company || !ruc || !cargo || !phone || !referralSource) {
+            return res.status(400).json({ message: "Todos los campos obligatorios deben ser completados." });
+        }
+
+        // 2. Validar reCAPTCHA con Google de forma segura
+        if (captchaToken) {
+            try {
+                const googleVerifyUrl = `https://www.google.com/recaptcha/api/siteverify?secret=${process.env.RECAPTCHA_SECRET_KEY}&response=${captchaToken}`;
+                const recaptchaRes = await axios.post(googleVerifyUrl);
+                const { success, score } = recaptchaRes.data;
+
+                if (!success || (score !== undefined && score < 0.5)) {
+                    return res.status(400).json({ message: "Verificación de seguridad reCAPTCHA fallida." });
+                }
+            } catch (captchaError) {
+                console.error("⚠️ Error consultando API de reCAPTCHA:", captchaError.message);
+            }
+        }
+
+        // 3. Validar si el usuario ya existe
         const exists = await User.findOne({ email });
         if (exists) {
-            return res.status(400).json({ message: "Usuario ya existe" });
+            return res.status(400).json({ message: "El correo electrónico ya se encuentra registrado." });
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Generar un token único y seguro usando crypto
+        // 4. Generar token de activación
         const token = crypto.randomBytes(32).toString("hex");
-        // Definir tiempo de expiración (1 hora a partir de este momento)
-        const tokenExpires = new Date(Date.now() + 3600000);
+        const tokenExpires = new Date(Date.now() + 3600000); // 1 hora
 
-        // Crear el usuario con rol 'USER' y verificado en FALSE
+        // 5. Crear el usuario en la base de datos
         const user = await User.create({
             firstname,
             lastname,
             email,
             password: hashedPassword,
+            company,
+            ruc,
+            cargo,
+            phone,
+            referralSource,
             companyPublicCode: companyPublicCode || null,
-            role: "USER", // Rol por defecto solicitado
-            verified: false, // Forzar verificación por correo
+            role: "USER",
+            verified: false,
             verificationToken: token,
             verificationTokenExpires: tokenExpires,
         });
 
-        // Enviar el correo electrónico real utilizando tu servicio
-        await sendVerificationEmail(user.email, token);
+        // 6. Enviar correo de verificación (capturando posibles errores de Nodemailer)
+        try {
+            await sendVerificationEmail(user.email, token);
+        } catch (emailError) {
+            console.error("❌ Error enviando email de verificación:", emailError.message);
+        }
 
-        res.status(201).json({
-            message:
-                "Usuario registrado con éxito. Por favor, verifica tu correo electrónico.",
+        return res.status(201).json({
+            message: "Usuario registrado con éxito. Por favor, verifica tu correo electrónico.",
             user: {
                 id: user._id,
                 firstname: user.firstname,
                 lastname: user.lastname,
                 email: user.email,
+                company: user.company,
+                ruc: user.ruc,
                 role: user.role,
                 verified: user.verified,
             },
         });
     } catch (error) {
-        console.error("Error en el registro:", error);
-        res.status(500).json({
-            message: "Error interno del servidor al registrar usuario.",
+        console.error("❌ ERROR DETALLADO EN REGISTRO:", error);
+        return res.status(500).json({
+            message: error.message || "Error interno del servidor al registrar usuario.",
         });
     }
 };
