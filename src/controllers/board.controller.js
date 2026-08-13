@@ -161,41 +161,74 @@ export const createBoard = async (req, res) => {
     }
 };
 
-// ✅ Obtener tableros por empresa
+// ✅ FUNCIÓN CORREGIDA getCompanyBoards:
 export const getCompanyBoards = async (req, res) => {
-    try {
-        let { publicCode } = req.params;
+  try {
+    let { publicCode } = req.params;
 
-        if (!req.user) {
-            return res.status(401).json({ message: "No autorizado" });
-        }
-
-        if (req.user.role === "ADMIN") {
-            const company = await Company.findById(req.user.company);
-            if (!company) {
-                return res
-                    .status(404)
-                    .json({ message: "Empresa no encontrada" });
-            }
-            publicCode = company.publicCode;
-        }
-
-        const company = await Company.findOne({ publicCode });
-        if (!company) {
-            return res.status(404).json({ message: "Empresa no encontrada" });
-        }
-
-        const boards = await Board.find({
-            companyPublicCode: publicCode,
-        });
-
-        return res.json({ company, boards });
-    } catch (error) {
-        return res.status(500).json({ message: error.message });
+    if (!req.user) {
+      return res.status(401).json({ message: "No autorizado" });
     }
+
+    // Para ADMIN o USER, usamos companyPublicCode guardado en el usuario
+    if (req.user.role === "ADMIN" || req.user.role === "USER") {
+      publicCode = typeof req.user.companyPublicCode === "string"
+        ? req.user.companyPublicCode
+        : req.user.companyPublicCode?.publicCode;
+    }
+
+    if (!publicCode) {
+      return res.status(400).json({ message: "Código de empresa no proporcionado" });
+    }
+
+    const company = await Company.findOne({ publicCode });
+    if (!company) {
+      return res.status(404).json({ message: "Empresa no encontrada" });
+    }
+
+    const boards = await Board.find({
+      companyPublicCode: publicCode,
+    }).sort({ createdAt: -1 });
+
+    return res.json({ company, boards });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
 };
 
-// ✅ Obtener tablero por código
+// ── HELPER: Filtra los datos sensibles del tablero según el plan del usuario ──
+const sanitizeBoardByPlan = (boardObj, plan = "basico") => {
+    const sanitized = { ...boardObj };
+
+    // PLAN BÁSICO: Solo fotos de tablero e información general / leyenda
+    if (plan === "basico") {
+        if (sanitized.images) {
+            sanitized.images = {
+                tablero: sanitized.images.tablero || []
+                // Eliminamos unifilar y termografia para que no viajen como []
+            };
+        }
+        delete sanitized.nfpa;
+        delete sanitized.insulationMeasurements; // Solo accesible en planes superiores/empresarial
+        sanitized.assignedDocuments = [];
+    } 
+    // PLAN INTERMEDIO: Añade Unifilar y Certificados. Oculta Termografía, NFPA y SPAT
+    else if (plan === "intermedio") {
+        if (sanitized.images) {
+            sanitized.images = {
+                tablero: sanitized.images.tablero || [],
+                unifilar: sanitized.images.unifilar || []
+            };
+        }
+        delete sanitized.nfpa;
+        delete sanitized.insulationMeasurements;
+    }
+
+    // PLAN EMPRESARIAL: Mantiene todos los datos sin modificar
+    return sanitized;
+};
+
+// ✅ Obtener tablero por código (PRIVADO)
 export const getBoardByCode = async (req, res) => {
     try {
         const { publicCode, code } = req.params;
@@ -227,8 +260,13 @@ export const getBoardByCode = async (req, res) => {
             });
         }
 
+        // 🛡️ APLICAMOS LA RESTRICCIÓN SEGÚN EL PLAN DEL USUARIO
+        const isSuperAdmin = req.user?.role === "SUPERADMIN";
+        const userPlan = isSuperAdmin ? "empresarial" : (req.user?.plan || "basico");
+        const sanitizedBoard = sanitizeBoardByPlan(board.toObject(), userPlan);
+
         return res.json({
-            ...board.toObject(),
+            ...sanitizedBoard,
             company: {
                 name: company.name,
                 publicCode: company.publicCode,
@@ -420,31 +458,32 @@ export const deleteBoard = async (req, res) => {
  * =========================
  */
 
+// ✅ VERIFICA/REEMPLAZA EN controllers/board.controller.js:
 export const publicGetCompanyBoards = async (req, res) => {
-    try {
-        const { publicCode } = req.params;
+  try {
+    const { publicCode } = req.params;
 
-        const company = await Company.findOne({ publicCode });
-        if (!company) {
-            return res.status(404).json({ message: "Empresa no encontrada" });
-        }
-
-        const boards = await Board.find({ companyPublicCode: publicCode })
-            .select(
-                "code boardCode name type tensionNominal numeroFases incluyeNeutro location description images nfpa createdAt",
-            )
-            .sort({ createdAt: -1 });
-
-        return res.json({
-            company: {
-                name: company.name,
-                publicCode: company.publicCode,
-            },
-            boards,
-        });
-    } catch (error) {
-        return res.status(500).json({ message: error.message });
+    const company = await Company.findOne({ publicCode });
+    if (!company) {
+      return res.status(404).json({ message: "Empresa no encontrada" });
     }
+
+    const boards = await Board.find({ companyPublicCode: publicCode })
+      .select(
+        "code boardCode name type tensionNominal numeroFases incluyeNeutro location description images nfpa createdAt",
+      )
+      .sort({ createdAt: -1 });
+
+    return res.json({
+      company: {
+        name: company.name,
+        publicCode: company.publicCode,
+      },
+      boards,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
 };
 
 export const publicGetCompanyBoardByCode = async (req, res) => {
@@ -465,8 +504,12 @@ export const publicGetCompanyBoardByCode = async (req, res) => {
             return res.status(404).json({ message: "Tablero no encontrado" });
         }
 
+        // 🛡️ En accesos públicos (escaneo de QR) sanitizamos según el plan real contratado por la empresa
+        const companyPlan = company.plan || "basico";
+        const sanitizedBoard = sanitizeBoardByPlan(board.toObject(), companyPlan);
+
         return res.json({
-            ...board.toObject(),
+            ...sanitizedBoard,
             company: {
                 name: company.name,
                 publicCode: company.publicCode,

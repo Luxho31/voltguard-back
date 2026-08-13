@@ -6,7 +6,7 @@ const userSchema = new mongoose.Schema(
         lastname: { type: String, required: true },
         email: { type: String, required: true, unique: true },
         password: { type: String, required: true },
-        
+
         // ── NUEVOS CAMPOS AGREGADOS ──
         company: { type: String, required: true, trim: true },
         ruc: { type: String, required: true, trim: true },
@@ -24,15 +24,15 @@ const userSchema = new mongoose.Schema(
         companyPublicCode: {
             type: String,
             required: function () {
-               return this.role === "ADMIN" && this.isModified("role");
+                return this.role === "ADMIN" && this.isModified("role");
             },
             default: null,
             trim: true,
         },
         plan: {
             type: String,
-            enum: ["free", "basic", "pro"],
-            default: "free",
+            enum: ["basico", "intermedio", "empresarial"],
+            default: "basico",
         },
         verified: {
             type: Boolean,
