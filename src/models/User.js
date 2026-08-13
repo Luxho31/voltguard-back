@@ -27,8 +27,8 @@ const userSchema = new mongoose.Schema(
         },
         plan: {
             type: String,
-            enum: ["free", "basic", "pro"],
-            default: "free",
+            enum: ["basico", "intermedio", "empresarial"],
+            default: "basico",
         },
         verified: {
             type: Boolean,

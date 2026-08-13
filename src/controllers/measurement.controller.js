@@ -105,6 +105,8 @@ export const importMetrel = async (req, res) => {
 
 // B. CONSULTA EXTENDIDA PARA ENVIAR LAS TRES VARIABLES AGROPADAS POR DÍA
 // ── REEMPLAZAR LA FUNCIÓN chartData COMPLETA EN EL CONTROLLER ──
+// B. CONSULTA ESTANDARIZADA DE LUNES A DOMINGO
+// B. CONSULTA ESTANDARIZADA EN ORDEN STRICTO (LUNES A DOMINGO)
 export const chartData = async (req, res) => {
   try {
     const { boardId } = req.params;
@@ -125,21 +127,60 @@ export const chartData = async (req, res) => {
       query.fecha = { $gte: minFechaDisponible, $lte: maxFechaDisponible };
     }
 
-    const datos = await Measurement.find(query).sort({ horaMinuto: 1 });
+    const datos = await Measurement.find(query).sort({ timestamp: 1 });
 
+    if (!datos || datos.length === 0) {
+      return res.json({
+        agrupado: {},
+        minFecha: minFechaDisponible,
+        maxFecha: maxFechaDisponible
+      });
+    }
+
+    // 1. Identificar la fecha del primer Lunes en la muestra
+    const primerLunesObj = datos.find(item => item.timestamp.getUTCDay() === 1);
+    const fechaLunesBase = primerLunesObj
+      ? new Date(primerLunesObj.fecha + 'T00:00:00.000Z')
+      : new Date(datos[0].fecha + 'T00:00:00.000Z');
+
+    // 2. Inicializar el objeto 'agrupado' en orden secuencial exacto (i = 0 a 6)
     const agrupado = {};
+    const diasInfo = [];
+    const diasNombres = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
+    for (let i = 0; i < 7; i++) {
+      const fechaDia = new Date(fechaLunesBase);
+      fechaDia.setUTCDate(fechaLunesBase.getUTCDate() + i);
+
+      const yyyy = fechaDia.getUTCFullYear();
+      const mm = String(fechaDia.getUTCMonth() + 1).padStart(2, '0');
+      const dd = String(fechaDia.getUTCDate()).padStart(2, '0');
+
+      const fechaFormateada = `${yyyy}-${mm}-${dd}`;
+      const nombreDia = diasNombres[i];
+      const keyFinal = `${fechaFormateada} (${nombreDia})`;
+
+      // Insertar la propiedad en orden cronológico Lunes -> Domingo
+      agrupado[keyFinal] = {};
+
+      diasInfo.push({
+        jsDay: fechaDia.getUTCDay(), // 1: Lun, 2: Mar, ..., 6: Sáb, 0: Dom
+        keyFinal
+      });
+    }
+
+    // 3. Rellenar las lecturas en el día correspondiente
     datos.forEach(item => {
-      const key = `${item.fecha} (${item.diaSemana})`;
-      
-      if (!agrupado[key]) agrupado[key] = {};
+      const jsDay = item.timestamp.getUTCDay();
+      const match = diasInfo.find(d => d.jsDay === jsDay);
 
-      // Enviamos p, ind y cap juntos para cada punto de tiempo
-      agrupado[key][item.horaMinuto] = {
-        p: item.demandaKw,
-        ind: item.reactivaIndKvar,
-        cap: item.reactivaCapKvar
-      };
+      if (match) {
+        agrupado[match.keyFinal][item.horaMinuto] = {
+          p: item.demandaKw,
+          ind: item.reactivaIndKvar,
+          cap: item.reactivaCapKvar
+        };
+      }
     });
 
     return res.json({
