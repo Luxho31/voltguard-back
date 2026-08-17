@@ -1,24 +1,22 @@
 import Document from "../models/Document.js";
 import { v2 as cloudinary } from "cloudinary";
 
-// Función utilitaria para subir el buffer de memoria a Cloudinary usando Streams
-// Modifica esta función en tu controlador de la parte de atrás (Backend)
+// Helper para subir archivos a Cloudinary como RAW (Documentos estandar)
 const uploadFromBuffer = (fileBuffer, companyPublicCode, originalName) => {
     return new Promise((resolve, reject) => {
-        // Extraemos la extensión o aseguramos que termine en .pdf
+        // Aseguramos un public_id limpio sin la extensión duplicada
         const cleanName = originalName.toLowerCase().endsWith('.pdf') 
             ? originalName.replace(/\.pdf$/i, '') 
             : originalName;
 
+        // Sanitizamos el nombre eliminando caracteres especiales
+        const safePublicId = cleanName.replace(/[^a-zA-Z0-9_-]/g, "_");
+
         const stream = cloudinary.uploader.upload_stream(
             {
-                folder: `tableros_electricos/documentos/${companyPublicCode}`,
-                // 👇 1. CAMBIO CLAVE: Se usa "image" (Cloudinary trata los PDFs como imágenes vectoriales multi-página)
-                resource_type: "image", 
-                // 👇 2. CAMBIO CLAVE: Forzamos el formato PDF para que genere las cabeceras HTTP correctas
-                format: "pdf", 
-                public_id: cleanName, 
-                keep_original_filename: true,
+                folder: `boards/documentos/${companyPublicCode}`,
+                resource_type: "auto", // 👈 "raw" es la forma correcta para PDFs completos
+                public_id: `${safePublicId}`, // 👈 Forzamos la extensión en el public_id
             },
             (error, result) => {
                 if (result) resolve(result);
@@ -29,26 +27,28 @@ const uploadFromBuffer = (fileBuffer, companyPublicCode, originalName) => {
     });
 };
 
-// 1. SUBIR MULTIPLES DOCUMENTOS (POST)
+// 1. SUBIR MÚLTIPLES DOCUMENTOS (POST)
 export const uploadDocuments = async (req, res) => {
     try {
         const { companyPublicCode, uploadedBy, types, titles } = req.body;
-        // Nota: Si mandas títulos y tipos personalizados por cada archivo desde el front, 
-        // llegarán como arrays en req.body.types y req.body.titles.
 
         // Validar que vengan archivos en la petición
         if (!req.files || req.files.length === 0) {
             return res.status(400).json({ message: "No se han seleccionado archivos PDF" });
         }
 
-        // Mapeamos los archivos para subirlos todos en paralelo
+        // Normalizar titles y types a Arrays por si vienen como String individual desde Multer/FormData
+        const titlesArray = Array.isArray(titles) ? titles : [titles];
+        const typesArray = Array.isArray(types) ? types : [types];
+
+        // Mapeamos los archivos para subirlos en paralelo
         const uploadPromises = req.files.map(async (file, index) => {
             // Subir a Cloudinary desde el buffer de memoria
             const cloudinaryResult = await uploadFromBuffer(file.buffer, companyPublicCode, file.originalname);
 
-            // Determinar título y tipo (si vienen como arrays del front, si no, usa un fallback)
-            const documentTitle = Array.isArray(titles) ? titles[index] : (titles || file.originalname);
-            const documentType = Array.isArray(types) ? types[index] : (types || "MANTENIMIENTO");
+            // Asignación segura con fallback
+            const documentTitle = titlesArray[index] || file.originalname;
+            const documentType = typesArray[index] || "MANTENIMIENTO";
 
             // Crear el registro de Mongo
             const newDocument = new Document({
@@ -63,7 +63,7 @@ export const uploadDocuments = async (req, res) => {
             return await newDocument.save();
         });
 
-        // Ejecutar todas las subidas y guardados concurrentemente
+        // Ejecutar subidas concurrentemente
         const savedDocuments = await Promise.all(uploadPromises);
 
         return res.status(201).json({
@@ -72,44 +72,10 @@ export const uploadDocuments = async (req, res) => {
         });
 
     } catch (error) {
-        console.error(error);
+        console.error("Error en uploadDocuments:", error);
         return res.status(500).json({ message: "Error en la subida múltiple", error: error.message });
     }
 };
-
-// 1. SUBIR / CREAR DOCUMENTO (POST)
-// export const uploadDocument = async (req, res) => {
-//     try {
-//         const { title, type, companyPublicCode, uploadedBy } = req.body;
-
-//         // Validar que venga el archivo desde Multer
-//         if (!req.file) {
-//             return res.status(400).json({ message: "El archivo PDF es requerido" });
-//         }
-
-//         // Subir archivo a Cloudinary (forzando formato PDF y en una carpeta organizada)
-//         // Multer nos da el archivo en req.file.path (si usas DiskStorage o CloudinaryStorage)
-//         const result = await cloudinary.uploader.upload(req.file.path, {
-//             folder: `tableros_electricos/documentos/${companyPublicCode}`,
-//             resource_type: "raw", // Usamos 'raw' para PDFs y archivos no-imagen
-//         });
-
-//         const newDocument = new Document({
-//             title,
-//             type,
-//             companyPublicCode,
-//             cloudinaryUrl: result.secure_url,
-//             cloudinaryPublicId: result.public_id,
-//             uploadedBy // ID del usuario que lo sube
-//         });
-
-//         await newDocument.save();
-//         return res.status(201).json(newDocument);
-//     } catch (error) {
-//         console.error(error);
-//         return res.status(500).json({ message: "Error al subir el documento", error: error.message });
-//     }
-// };
 
 // 2. OBTENER DOCUMENTOS POR EMPRESA (GET)
 export const getDocumentsByCompany = async (req, res) => {
@@ -123,7 +89,6 @@ export const getDocumentsByCompany = async (req, res) => {
 };
 
 // 3. ACTUALIZAR DATOS DEL DOCUMENTO (PUT)
-// Nota: Normalmente solo se actualiza el título o el tipo. Si se quiere cambiar el archivo, es mejor borrar y subir otro.
 export const updateDocumentData = async (req, res) => {
     try {
         const { id } = req.params;
@@ -132,7 +97,7 @@ export const updateDocumentData = async (req, res) => {
         const updatedDocument = await Document.findByIdAndUpdate(
             id,
             { $set: { title, type } },
-            { new: true } // Para que devuelva el documento ya modificado
+            { new: true }
         );
 
         if (!updatedDocument) {
@@ -155,7 +120,7 @@ export const deleteDocument = async (req, res) => {
             return res.status(404).json({ message: "Documento no encontrado" });
         }
 
-        // Eliminar físicamente de Cloudinary primero
+        // Eliminar físicamente de Cloudinary especificando resource_type: "raw"
         await cloudinary.uploader.destroy(document.cloudinaryPublicId, { resource_type: "image" });
 
         // Eliminar de la base de datos
