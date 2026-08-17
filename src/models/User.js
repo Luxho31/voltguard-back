@@ -6,11 +6,9 @@ const userSchema = new mongoose.Schema(
         lastname: { type: String, required: true },
         email: { type: String, required: true, unique: true },
         password: { type: String, required: true },
-
-        // ── NUEVOS CAMPOS AGREGADOS ──
+        
         company: { type: String, required: true, trim: true },
         ruc: { type: String, required: true, trim: true },
-        cargo: { type: String, required: true, trim: true },
         phone: { type: String, required: true, trim: true },
         referralSource: { type: String, required: true, trim: true },
 
@@ -21,11 +19,9 @@ const userSchema = new mongoose.Schema(
             default: "USER",
         },
 
+        // Campo desvinculado del registro
         companyPublicCode: {
             type: String,
-            required: function () {
-                return this.role === "ADMIN" && this.isModified("role");
-            },
             default: null,
             trim: true,
         },

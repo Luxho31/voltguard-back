@@ -15,17 +15,15 @@ export const register = async (req, res) => {
             lastname,
             email,
             password,
-            companyPublicCode,
             company,
             ruc,
-            cargo,
             phone,
             referralSource,
             captchaToken,
         } = req.body;
 
         // 1. Validar campos obligatorios
-        if (!firstname || !lastname || !email || !password || !company || !ruc || !cargo || !phone || !referralSource) {
+        if (!firstname || !lastname || !email || !password || !company || !ruc || !phone || !referralSource) {
             return res.status(400).json({ message: "Todos los campos obligatorios deben ser completados." });
         }
 
@@ -56,7 +54,7 @@ export const register = async (req, res) => {
         const token = crypto.randomBytes(32).toString("hex");
         const tokenExpires = new Date(Date.now() + 3600000); // 1 hora
 
-        // 5. Crear el usuario en la base de datos
+        // 5. Crear el usuario en la base de datos (companyPublicCode tomará su valor default: null)
         const user = await User.create({
             firstname,
             lastname,
@@ -64,17 +62,15 @@ export const register = async (req, res) => {
             password: hashedPassword,
             company,
             ruc,
-            cargo,
             phone,
             referralSource,
-            companyPublicCode: companyPublicCode || null,
             role: "USER",
             verified: false,
             verificationToken: token,
             verificationTokenExpires: tokenExpires,
         });
 
-        // 6. Enviar correo de verificación (capturando posibles errores de Nodemailer)
+        // 6. Enviar correo de verificación
         try {
             await sendVerificationEmail(user.email, token);
         } catch (emailError) {
