@@ -18,6 +18,8 @@ import SubscriptionRoute from "./routes/subscription.route.js";
 import documentRoute from "./routes/document.route.js";
 import measurementRoute from "./routes/measurement.route.js";
 import importUnifilarNFPARoute from "./routes/importUnifilarNFPA.route.js";
+import thermographyRoute from "./routes/thermography.route.js";
+import voltageEventRoute from "./routes/voltageEvent.route.js";
 
 dotenv.config();
 
@@ -57,6 +59,8 @@ app.use("/api/v1/subscription", SubscriptionRoute);
 app.use("/api/v1/document", documentRoute);
 app.use("/api/v1/mediciones", measurementRoute);
 app.use("/api/v1/import-unifilar-nfpa", importUnifilarNFPARoute);
+app.use("/api/v1/thermography", thermographyRoute);
+app.use("/api/v1/voltage-events", voltageEventRoute);
 
 const PORT = process.env.PORT || 5080;
 
